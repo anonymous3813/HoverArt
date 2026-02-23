@@ -1,0 +1,9 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+
+body {
+	margin: 0;
+	background: #07070d;
+	color: #e0e0e8;
+}
