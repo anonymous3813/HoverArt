@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { classifyGesture } from '$lib/gestures.ts';
   import {
     HandLandmarker,
     FilesetResolver,
@@ -40,8 +41,8 @@
   const SMOOTH_SAMPLES = 5;
   let posBuffer: { x: number; y: number }[] = [];
 
-  const PINCH_THRESHOLD = 0.06;
-  const FIST_THRESHOLD  = 0.12;
+  const width = 1280;
+  const height = 720;
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -87,7 +88,7 @@
 
   async function initCamera() {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 1280, height: 720, facingMode: 'user' }
+      video: { width: width, height: height, facingMode: 'user' }
     });
     videoEl.srcObject = stream;
     await new Promise<void>((res) => (videoEl.onloadedmetadata = () => res()));
@@ -95,6 +96,8 @@
 
     const w = videoEl.videoWidth;
     const h = videoEl.videoHeight;
+    console.log(`Camera stream dimensions: ${w}x${h}`);
+    
     canvasEl.width = w;
     canvasEl.height = h;
     overlayEl.width = w;
@@ -163,7 +166,7 @@
     }
 
     const tip = landmarks[8];
-    const rawX = (1 - tip.x) * canvasEl.width;
+    const rawX = tip.x * canvasEl.width;
     const rawY = tip.y * canvasEl.height;
 
     posBuffer.push({ x: rawX, y: rawY });
@@ -180,36 +183,6 @@
     }
 
     drawCursor(overlayCtx, smoothed.x, smoothed.y);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Gesture classification
-  // ---------------------------------------------------------------------------
-  function classifyGesture(landmarks: any[]) {
-    const thumbTip  = landmarks[4];
-    const indexTip  = landmarks[8];
-    const indexPip  = landmarks[6];
-    const middleTip = landmarks[12];
-    const middlePip = landmarks[10];
-    const ringTip   = landmarks[16];
-    const ringPip   = landmarks[14];
-    const pinkyTip  = landmarks[20];
-    const pinkyPip  = landmarks[18];
-
-    const dist = (a: any, b: any) =>
-      Math.hypot(a.x - b.x, a.y - b.y, (a.z - b.z) * 0.5);
-
-    const pinchDist = dist(thumbTip, indexTip);
-    if (pinchDist < PINCH_THRESHOLD) return 'erase';
-
-    const indexExtended = indexTip.y < indexPip.y;
-    const middleCurled  = middleTip.y > middlePip.y;
-    const ringCurled    = ringTip.y > ringPip.y;
-    const pinkyCurled   = pinkyTip.y > pinkyPip.y;
-
-    if (indexExtended && middleCurled && ringCurled && pinkyCurled) return 'draw';
-
-    return 'none';
   }
 
   // ---------------------------------------------------------------------------
