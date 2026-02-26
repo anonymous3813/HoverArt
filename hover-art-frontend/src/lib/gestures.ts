@@ -18,10 +18,16 @@ export function classifyGesture(landmarks: any[]) {
 	if (pinchDist < PINCH_THRESHOLD) return 'erase';
 
 	const indexExtended = indexTip.y < indexPip.y;
+	const middleExtended = middleTip.y < middlePip.y;
 	const middleCurled = middleTip.y > middlePip.y;
 	const ringCurled = ringTip.y > ringPip.y;
 	const pinkyCurled = pinkyTip.y > pinkyPip.y;
 
+	const ringExtended = ringTip.y < ringPip.y;
+	const pinkyExtended = pinkyTip.y < pinkyPip.y;
+
+	if (indexExtended && middleExtended && ringExtended && pinkyExtended) return 'open-palm';
+	if (indexExtended && middleExtended && ringCurled && pinkyCurled) return 'color-select';
 	if (indexExtended && middleCurled && ringCurled && pinkyCurled) return 'draw';
 
 	return 'none';
