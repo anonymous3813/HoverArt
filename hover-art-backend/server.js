@@ -5,6 +5,7 @@ import express from 'express';
 import emailRouter from './routes/email.js';
 import authRouter from './routes/auth.js';
 import { registerCanvasHandlers } from './sockets/canvas.js';
+import { initDb } from './services/db.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -29,4 +30,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => console.log(`HoverArt backend running on :${PORT}`));
+initDb()
+  .then(() => httpServer.listen(PORT, () => console.log(`HoverArt backend running on :${PORT}`)))
+  .catch((err) => { console.error('Failed to initialise database:', err.message); process.exit(1); });
