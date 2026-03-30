@@ -25,13 +25,19 @@ const initial = loadFromStorage();
 export const auth = $state({ token: initial.token, user: initial.user });
 
 export function setAuth(token: string, user: AuthUser) {
-  localStorage.setItem('hoverart_token', token);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('hoverart_token', token);
+    document.cookie = `hoverart_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+  }
   auth.token = token;
   auth.user = user;
 }
 
 export function clearAuth() {
-  localStorage.removeItem('hoverart_token');
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('hoverart_token');
+    document.cookie = 'hoverart_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+  }
   auth.token = null;
   auth.user = null;
 }
