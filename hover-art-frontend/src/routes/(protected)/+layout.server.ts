@@ -8,7 +8,6 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     }
     
     // Pass the user object to all child routes for convenience.
-    // It will be accessible in page data (e.g., `data.user`).
     return {
         user: locals.user
     };

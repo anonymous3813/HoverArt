@@ -13,7 +13,6 @@ function parseToken(token: string) {
 
 export const handle: Handle = async ({ event, resolve }) => {
   const token = event.cookies.get('hoverart_token');
-  console.log("handling it")
   if (token) {
     const user = parseToken(token);
     if (user) {
