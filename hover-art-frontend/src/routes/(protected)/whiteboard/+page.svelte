@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { io, type Socket } from 'socket.io-client';
 	import HandCanvas from '$lib/components/HandCanvas.svelte';
-	import { auth, clearAuth, isLoggedIn } from '$lib/auth.svelte.ts';
+	import { auth, clearAuth } from '$lib/auth.svelte.ts';
 
 	const BACKEND_URL = 'http://localhost:3001';
 
@@ -42,7 +42,6 @@
 	}
 
 	onMount(() => {
-		if (!isLoggedIn()) { goto('/login'); return; }
 		socket = io(BACKEND_URL, { autoConnect: true });
 
 		socket.on('room-created', ({ code }: { code: string }) => {

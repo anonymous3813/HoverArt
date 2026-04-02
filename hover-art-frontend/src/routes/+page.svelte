@@ -165,16 +165,17 @@
 </footer>
 
 <script>
-  import { onMount } from 'svelte';
-
+  import { onDestroy, onMount } from 'svelte';
+  
+  
   onMount(() => {
-    const cursor = document.getElementById('cursor');
+    /*const cursor = document.getElementById('cursor');
     const dot = document.getElementById('cursorDot');
     let mx = 0, my = 0, cx = 0, cy = 0;
 
-    document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+    document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });*/
 
-    function animCursor() {
+    /*function animCursor() {
       cx += (mx - cx) * 0.12;
       cy += (my - cy) * 0.12;
       cursor.style.left = cx + 'px';
@@ -183,8 +184,8 @@
       dot.style.top = my + 'px';
       requestAnimationFrame(animCursor);
     }
-    animCursor();
-
+    animCursor();*/
+    
     document.querySelectorAll('a, button').forEach(el => {
       el.addEventListener('mouseenter', () => {
         cursor.style.width = '40px';
@@ -224,9 +225,11 @@
       el.style.transitionDelay = (i * 0.1) + 's';
     });
   });
+
 </script>
 
 <style>
+  /*
   :global(*, *::before, *::after) { box-sizing: border-box; margin: 0; padding: 0; }
   :global(html) { scroll-behavior: smooth; }
   :global(body) {
@@ -257,28 +260,8 @@
     );
     pointer-events: none;
     z-index: 9990;
-  }
+  }*/
 
-  .cursor {
-    position: fixed;
-    width: 20px; height: 20px;
-    border: 2px solid #00f5ff;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9999;
-    transform: translate(-50%,-50%);
-    transition: width 0.2s, height 0.2s, background 0.2s;
-    mix-blend-mode: screen;
-  }
-  .cursor-dot {
-    position: fixed;
-    width: 4px; height: 4px;
-    background: #00f5ff;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9999;
-    transform: translate(-50%,-50%);
-  }
 
   nav {
     position: fixed;
