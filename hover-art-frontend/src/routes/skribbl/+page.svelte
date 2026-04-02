@@ -51,6 +51,7 @@
   let drawerIdx   = $state(0);
   let round       = $state(1);
   let totalRounds = $state(3);
+  let roundDuration = $state(60);
   let secretWord  = $state('');
   let wordChoices = $state<string[]>([]);
   let timerSec    = $state(80);
@@ -317,7 +318,7 @@
   }
 
   function startDrawing() {
-    phase = 'drawing'; timerSec = 80;
+    phase = 'drawing'; timerSec = roundDuration;
     // Camera is started by the $effect that watches phase + isDrawer
 
     pushSystem(`✏ Round ${round} started — ${drawer?.name} is drawing!`);
@@ -361,11 +362,40 @@
   // Track previous wrong guesses per AI so they don't repeat themselves
   const aiPriorGuesses: Record<string, string[]> = {};
 
+  // Random early guesses — blurt out a word before the canvas has much on it
+  const BLURT_WORDS = [
+    'cat','dog','house','tree','car','fish','bird','moon','star','sun',
+    'hat','cup','hand','clock','pizza','robot','snake','ghost','heart','crown'
+  ];
+
   function scheduleAIGuess(ais: Player[]) {
-    // Stagger each AI independently with some randomness
     ais.forEach(ai => {
       aiPriorGuesses[ai.id] = [];
-      const baseDelays = [6000, 18000, 36000];
+      const persona = getPersona(ai.name);
+
+      // Early random blurt (1-4s in) — just fires off a random word to get chat going
+      const blurtDelay = 1000 + Math.random() * 3000;
+      setTimeout(() => {
+        if (phase !== 'drawing' || ai.guessedThisRound) return;
+        const blurt = BLURT_WORDS[Math.floor(Math.random() * BLURT_WORDS.length)];
+        aiPriorGuesses[ai.id] = [blurt];
+        chat = [...chat, { playerId: ai.id, playerName: ai.name, text: blurt, correct: blurt === secretWord, ts: Date.now() }];
+        if (blurt === secretWord) {
+          // Lucky guess!
+          const pts = Math.max(10, Math.floor(timerSec * 1.5));
+          const currentDrawer = players[drawerIdx];
+          players = players.map(pl => {
+            if (pl.id === ai.id) return { ...pl, score: pl.score + pts, guessedThisRound: true };
+            if (pl.id === currentDrawer?.id) return { ...pl, score: pl.score + 40 };
+            return pl;
+          });
+          pushSystem(`🎉 ${ai.name} guessed it! +${pts} pts`);
+        }
+        scrollChat();
+      }, blurtDelay);
+
+      // Then real vision-based guesses at 8s, 20s, 38s
+      const baseDelays = [8000, 20000, 38000];
       baseDelays.forEach(base => {
         const jitter = Math.random() * 4000;
         setTimeout(async () => {
@@ -381,8 +411,8 @@
     const persona = getPersona(ai.name);
     const prior = aiPriorGuesses[ai.id] ?? [];
 
-    // Occasionally react before guessing
-    if (Math.random() < 0.4 && prior.length > 0) {
+    // Always react on first guess, sometimes on later ones
+    if (prior.length === 0 || Math.random() < 0.5) {
       const reaction = persona.reactions[Math.floor(Math.random() * persona.reactions.length)];
       chat = [...chat, { playerId: ai.id, playerName: ai.name, text: reaction, correct: false, ts: Date.now() }];
       scrollChat();
@@ -396,9 +426,8 @@
       const priorText = prior.length > 0
         ? `You already guessed wrong: ${prior.join(', ')}. Do NOT guess those again.`
         : '';
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      const resp = await fetch('http://localhost:3001/claude', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 80,
@@ -434,9 +463,8 @@ Respond with ONLY one lowercase word. No punctuation, no explanation, just the w
     if (!ctx || !canvas) return;
     aiThinking = true;
     try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      const resp = await fetch('http://localhost:3001/claude', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1200,
@@ -491,13 +519,18 @@ Respond with ONLY the JSON array, no explanation.`
       const p = players.find(pl => pl.id === pid);
       if (p && !p.guessedThisRound) {
         const pts = Math.max(10, Math.floor(timerSec * 1.5));
-        players = players.map(pl => {
+        const currentDrawer = players[drawerIdx];
+        const updatedPlayers = players.map(pl => {
           if (pl.id === pid) return { ...pl, score: pl.score + pts, guessedThisRound: true };
-          if (pl.id === drawer?.id) return { ...pl, score: pl.score + 40 };
+          if (pl.id === currentDrawer?.id) return { ...pl, score: pl.score + 40 };
           return pl;
         });
+        players = updatedPlayers;
         pushSystem(`🎉 ${pname} guessed it! +${pts} pts`);
-        if (allGuessed) { clearInterval(timerIv!); endRound(); }
+        const everyoneGuessed = updatedPlayers
+          .filter(pl => pl.id !== currentDrawer?.id)
+          .every(pl => pl.guessedThisRound);
+        if (everyoneGuessed) { clearInterval(timerIv!); endRound(); }
       }
     }
     scrollChat();
@@ -509,15 +542,16 @@ Respond with ONLY the JSON array, no explanation.`
 
   function submitPlayerGuess() {
     const text = guessInput.trim();
-    if (!text || phase !== 'drawing') return;
+    if (!text) return;
     const me = players.find(p => p.id === 'p1')!;
     guessInput = '';
-    if (isDrawer) {
-      // Drawer just chats — never scored
+    // During drawing phase, non-drawer who hasn't guessed yet: score their guess
+    if (phase === 'drawing' && !isDrawer && !me.guessedThisRound) {
+      submitChatMsg('p1', me.name, text);
+    } else {
+      // Everyone else (drawer, already guessed, roundend, lobby etc) just chats
       chat = [...chat, { playerId: 'p1', playerName: me.name, text, correct: false, ts: Date.now() }];
       scrollChat();
-    } else {
-      submitChatMsg('p1', me.name, text);
     }
   }
 
@@ -536,7 +570,17 @@ Respond with ONLY the JSON array, no explanation.`
     phase = 'roundend';
     roundWordReveal = secretWord;
     if (timerIv) clearInterval(timerIv);
-    pushSystem(`⏱ Time's up! The word was "${secretWord}"`);
+    // Give drawer a bonus if nobody guessed
+    const currentDrawer = players[drawerIdx];
+    const anyoneGuessed = players.some(p => p.id !== currentDrawer?.id && p.guessedThisRound);
+    if (!anyoneGuessed && currentDrawer) {
+      players = players.map(p =>
+        p.id === currentDrawer.id ? { ...p, score: p.score + 20 } : p
+      );
+      pushSystem(`⏱ Time's up! Nobody guessed — ${currentDrawer.name} gets a consolation +20 pts`);
+    } else {
+      pushSystem(`⏱ Time's up! The word was "${secretWord}"`);
+    }
 
     setTimeout(() => {
       drawerIdx = (drawerIdx + 1) % players.length;
@@ -701,7 +745,7 @@ Respond with ONLY the JSON array, no explanation.`
       <div class="px-5 py-3 text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.25);border-bottom:1px solid rgba(255,255,255,0.07)">
         // settings
       </div>
-      <div class="flex items-center justify-between px-5 py-4">
+      <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid rgba(255,255,255,0.05)">
         <span class="text-xs" style="color:rgba(255,255,255,0.5)">Total Rounds</span>
         <div class="flex items-center gap-3">
           {#each [2,3,4,5] as r}
@@ -711,6 +755,20 @@ Respond with ONLY the JSON array, no explanation.`
                      color:{totalRounds===r?'#00f5ff':'rgba(255,255,255,0.4)'};
                      background:{totalRounds===r?'rgba(0,245,255,0.08)':'transparent'}">
               {r}
+            </button>
+          {/each}
+        </div>
+      </div>
+      <div class="flex items-center justify-between px-5 py-4">
+        <span class="text-xs" style="color:rgba(255,255,255,0.5)">Round Duration</span>
+        <div class="flex items-center gap-3">
+          {#each [30, 60, 90] as d}
+            <button onclick={() => roundDuration = d}
+              class="px-3 h-8 text-xs font-mono transition-all"
+              style="border:1px solid {roundDuration===d?'#a78bfa':'rgba(255,255,255,0.15)'};
+                     color:{roundDuration===d?'#a78bfa':'rgba(255,255,255,0.4)'};
+                     background:{roundDuration===d?'rgba(167,139,250,0.08)':'transparent'}">
+              {d}s
             </button>
           {/each}
         </div>
@@ -845,7 +903,7 @@ Respond with ONLY the JSON array, no explanation.`
       {#if phase === 'drawing'}
       <div class="h-0.5" style="background:rgba(255,255,255,0.07)">
         <div class="h-full transition-all duration-1000"
-          style="width:{(timerSec/80)*100}%;background:{timerSec<=10?'#ff4ecd':timerSec<=20?'#ffd600':'#00f5ff'};
+          style="width:{(timerSec/roundDuration)*100}%;background:{timerSec<=10?'#ff4ecd':timerSec<=20?'#ffd600':'#00f5ff'};
                  box-shadow:0 0 8px {timerSec<=10?'#ff4ecd':timerSec<=20?'#ffd600':'#00f5ff'}"></div>
       </div>
       {/if}
@@ -954,84 +1012,123 @@ Respond with ONLY the JSON array, no explanation.`
         {/each}
       </div>
 
-      <!-- Chat / Guess input — always visible during drawing -->
-      {#if phase === 'drawing'}
-        {#if !isDrawer && players.find(p=>p.id==='p1')?.guessedThisRound}
-          <div class="px-4 py-3 text-xs text-center" style="color:#4eff91;border-top:1px solid rgba(255,255,255,0.07)">
-            ✓ You got it! Wait for others…
-          </div>
-          <!-- still let them chat even after guessing -->
-          <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.07)">
-            <div class="flex gap-2">
-              <input bind:value={guessInput} onkeydown={handleGuessKey}
-                placeholder="Chat…" autocomplete="off"
-                class="flex-1 px-3 py-2 text-xs font-mono outline-none"
-                style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e0e0f0"/>
-              <button onclick={submitPlayerGuess}
-                class="px-3 py-2 text-xs font-mono transition-all"
-                style="background:#00f5ff;color:#070710">→</button>
-            </div>
-          </div>
-        {:else}
-          <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.07)">
-            <div class="flex gap-2">
-              <input bind:value={guessInput} onkeydown={handleGuessKey}
-                placeholder={isDrawer ? "Chat with players…" : "Type your guess…"}
-                autocomplete="off"
-                class="flex-1 px-3 py-2 text-xs font-mono outline-none"
-                style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e0e0f0"/>
-              <button onclick={submitPlayerGuess}
-                class="px-3 py-2 text-xs font-mono transition-all"
-                style="background:#00f5ff;color:#070710">→</button>
-            </div>
-          </div>
+      <!-- Chat input — always visible -->
+      <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.07)">
+        {#if !isDrawer && phase === 'drawing' && players.find(p=>p.id==='p1')?.guessedThisRound}
+          <div class="mb-2 text-xs text-center" style="color:#4eff91">✓ You got it! Keep chatting…</div>
         {/if}
-      {/if}
+        <div class="flex gap-2">
+          <input bind:value={guessInput} onkeydown={handleGuessKey}
+            placeholder={phase === 'drawing' && !isDrawer && !players.find(p=>p.id==='p1')?.guessedThisRound ? "Type your guess…" : "Chat…"}
+            autocomplete="off"
+            class="flex-1 px-3 py-2 text-xs font-mono outline-none"
+            style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e0e0f0;border-radius:2px"/>
+          <button onclick={submitPlayerGuess}
+            class="px-3 py-2 text-xs font-mono transition-all"
+            style="background:#00f5ff;color:#070710">→</button>
+        </div>
+      </div>
     </aside>
   </div>
 
   <!-- ══════════════════ GAME OVER ══════════════════ -->
   {:else if phase === 'gameover'}
-  <div class="flex flex-col items-center justify-center min-h-screen gap-8 px-6 py-20">
-    <div class="text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.3)">// game_over</div>
-    <h1 class="font-syne font-black text-white tracking-tight" style="font-size:clamp(3rem,8vw,5rem)">
-      Final <span style="color:#00f5ff">Scores</span>
-    </h1>
+  <div class="flex flex-col items-center min-h-screen gap-10 px-6 py-16">
+    <div class="text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.25)">// game_over</div>
 
-    <div style="border:1px solid rgba(255,255,255,0.07);background:#0d0d1a;width:100%;max-width:480px">
-      {#each ranked as p, i}
-        <div class="flex items-center gap-4 px-6 py-4" style="border-bottom:{i<ranked.length-1?'1px solid rgba(255,255,255,0.07)':'none'}">
-          <span class="font-syne font-black text-3xl w-8"
-                style="color:{i===0?'#ffd600':i===1?'rgba(255,255,255,0.5)':i===2?'#ff9500':'rgba(255,255,255,0.2)'}">
-            {i===0?'1':i===1?'2':i===2?'3':i+1}
-          </span>
-          <div class="flex-1">
-            <div class="font-syne font-bold text-lg" style="color:{i===0?'#ffd600':'rgba(255,255,255,0.8)'}">{p.name}</div>
-            <div class="text-xs" style="color:rgba(255,255,255,0.3)">{p.isAI?'AI Player':'Human'}</div>
-          </div>
-          <div class="font-syne font-black text-2xl" style="color:{i===0?'#ffd600':'#00f5ff'}">{p.score}</div>
-        </div>
-      {/each}
-    </div>
-
+    <!-- Winner banner -->
     {#if ranked[0]}
       <div class="text-center">
-        <div class="text-4xl mb-2">{ranked[0].isAI ? '🤖' : '🏆'}</div>
-        <div class="font-syne font-black text-xl text-white">
+        <div class="text-5xl mb-3">{ranked[0].isAI ? '🤖' : '🏆'}</div>
+        <h1 class="font-syne font-black text-white m-0" style="font-size:clamp(2.5rem,7vw,4.5rem)">
           <span style="color:#ffd600">{ranked[0].name}</span> wins!
+        </h1>
+        <div class="mt-2 text-sm font-mono" style="color:rgba(255,255,255,0.3)">
+          {ranked[0].score} pts · {ranked[0].isAI ? 'AI Player' : 'Human'}
         </div>
       </div>
     {/if}
 
+    <!-- Podium (top 3) -->
+    {#if ranked.length >= 2}
+    <div class="flex items-end justify-center gap-3" style="width:100%;max-width:520px">
+      <!-- 2nd -->
+      {#if ranked[1]}
+      <div class="flex flex-col items-center gap-2 flex-1">
+        <div class="text-xl">{ranked[1].isAI ? '🤖' : '👤'}</div>
+        <div class="font-syne font-bold text-sm text-center truncate w-full" style="color:rgba(255,255,255,0.6)">{ranked[1].name}</div>
+        <div class="font-syne font-black text-xl" style="color:rgba(255,255,255,0.5)">{ranked[1].score}</div>
+        <div class="w-full flex items-center justify-center font-syne font-black text-2xl"
+             style="height:80px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.4)">2</div>
+      </div>
+      {/if}
+      <!-- 1st -->
+      <div class="flex flex-col items-center gap-2 flex-1">
+        <div class="text-2xl">{ranked[0].isAI ? '🤖' : '👤'}</div>
+        <div class="font-syne font-bold text-sm text-center truncate w-full" style="color:#ffd600">{ranked[0].name}</div>
+        <div class="font-syne font-black text-2xl" style="color:#ffd600">{ranked[0].score}</div>
+        <div class="w-full flex items-center justify-center font-syne font-black text-3xl"
+             style="height:120px;background:rgba(255,214,0,0.08);border:1px solid rgba(255,214,0,0.3);color:#ffd600">1</div>
+      </div>
+      <!-- 3rd -->
+      {#if ranked[2]}
+      <div class="flex flex-col items-center gap-2 flex-1">
+        <div class="text-xl">{ranked[2].isAI ? '🤖' : '👤'}</div>
+        <div class="font-syne font-bold text-sm text-center truncate w-full" style="color:rgba(255,149,0,0.8)">{ranked[2].name}</div>
+        <div class="font-syne font-black text-xl" style="color:#ff9500">{ranked[2].score}</div>
+        <div class="w-full flex items-center justify-center font-syne font-black text-2xl"
+             style="height:60px;background:rgba(255,149,0,0.05);border:1px solid rgba(255,149,0,0.2);color:#ff9500">3</div>
+      </div>
+      {/if}
+    </div>
+    {/if}
+
+    <!-- Full scoreboard -->
+    <div style="width:100%;max-width:520px;border:1px solid rgba(255,255,255,0.07);background:#0d0d1a">
+      <div class="px-5 py-3 text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.25);border-bottom:1px solid rgba(255,255,255,0.07)">
+        // full standings
+      </div>
+      {#each ranked as p, i}
+        {@const maxScore = ranked[0].score || 1}
+        <div class="relative px-5 py-3 overflow-hidden" style="border-bottom:{i<ranked.length-1?'1px solid rgba(255,255,255,0.05)':'none'}">
+          <!-- Score bar background -->
+          <div class="absolute inset-0 left-0"
+               style="width:{Math.round((p.score/maxScore)*100)}%;
+                      background:{i===0?'rgba(255,214,0,0.06)':i===1?'rgba(255,255,255,0.03)':i===2?'rgba(255,149,0,0.04)':'rgba(255,255,255,0.02)'}"></div>
+          <div class="relative flex items-center gap-4">
+            <span class="font-syne font-black text-lg w-6 text-center"
+                  style="color:{i===0?'#ffd600':i===1?'rgba(255,255,255,0.45)':i===2?'#ff9500':'rgba(255,255,255,0.2)'}">
+              {i+1}
+            </span>
+            <span class="text-base">{p.isAI ? '🤖' : '👤'}</span>
+            <div class="flex-1 min-w-0">
+              <div class="font-syne font-bold text-sm truncate"
+                   style="color:{i===0?'#ffd600':i===1?'rgba(255,255,255,0.75)':i===2?'#ff9500':'rgba(255,255,255,0.5)'}">
+                {p.name}
+              </div>
+              <div class="text-xs font-mono" style="color:rgba(255,255,255,0.2)">{p.isAI ? 'AI' : 'Human'}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-syne font-black text-xl"
+                   style="color:{i===0?'#ffd600':i===1?'rgba(255,255,255,0.6)':i===2?'#ff9500':'#00f5ff'}">
+                {p.score}
+              </div>
+              <div class="text-xs font-mono" style="color:rgba(255,255,255,0.2)">pts</div>
+            </div>
+          </div>
+        </div>
+      {/each}
+    </div>
+
     <div class="flex gap-4 flex-wrap justify-center">
       <button onclick={() => { players = players.map(p=>({...p,score:0,guessedThisRound:false})); startGame(); }}
         class="px-8 py-4 font-syne font-black text-base uppercase tracking-wider transition-all"
-        style="background:#00f5ff;color:#070710;box-shadow:0 0 30px rgba(0,245,255,0.25)">
+        style="background:#00f5ff;color:#070710;box-shadow:0 0 30px rgba(0,245,255,0.2)">
         Play Again →
       </button>
       <button onclick={() => phase = 'lobby'}
-        class="px-8 py-4 font-syne font-black text-base uppercase tracking-wider transition-all"
-        style="border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6)">
+        class="px-8 py-4 font-syne font-black text-base uppercase tracking-wider"
+        style="border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5)">
         ← Lobby
       </button>
     </div>
