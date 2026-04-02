@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { classifyGesture } from '$lib/gestures.ts';
+  import { blendGet, blendshapeTable } from '$lib/face/blendshapeTable.ts';
   import {
     HandLandmarker,
     FaceLandmarker,
@@ -146,9 +147,9 @@
       lastSmileCheck = now;
       const faceResult = faceLandmarker.detectForVideo(videoEl, now);
       if (faceResult.faceBlendshapes && faceResult.faceBlendshapes.length > 0) {
-        const cats = faceResult.faceBlendshapes[0].categories;
-        const smileL = cats.find((c: any) => c.categoryName === 'mouthSmileLeft')?.score ?? 0;
-        const smileR = cats.find((c: any) => c.categoryName === 'mouthSmileRight')?.score ?? 0;
+        const sym = blendshapeTable(faceResult.faceBlendshapes[0].categories);
+        const smileL = blendGet(sym, 'mouthSmileLeft');
+        const smileR = blendGet(sym, 'mouthSmileRight');
         const detected = (smileL + smileR) / 2 > 0.28 ? 'joyful' : 'neutral';
         if (detected !== moodState) moodState = detected;
       }
