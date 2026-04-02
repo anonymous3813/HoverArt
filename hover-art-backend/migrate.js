@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './bootstrap-env.js';
 import pg from 'pg';
 
 const { Client } = pg;
