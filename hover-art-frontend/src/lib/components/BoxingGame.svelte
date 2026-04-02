@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import { GameEngine } from '$lib/boxing/GameEngine.ts';
-	import { PoseDetector, drawPoseSkeleton } from '$lib/boxing/PoseDetector.ts';
+	import { GameEngine } from '$lib/boxing/GameEngine';
+	import { PoseDetector, drawPoseSkeleton } from '$lib/boxing/PoseDetector';
 
 	// ─── Props (Svelte 5 runes) ───────────────────────────────────────────────
 	interface Props {
@@ -39,14 +39,14 @@
 	let combo = $state(0);
 	let lastActionText = $state('');
 
-	let camError = $state(''); // shown if getUserMedia fails
+	let camError = $state(''); 
 	let poseStatus = $state(''); // 'Detecting…' | 'Punch detected!' etc.
-	let lastGesture = $state(''); // shown momentarily for feedback
+	let lastGesture = $state('');
 
 	// ─── Element refs ─────────────────────────────────────────────────────────
 	let gameCanvas: HTMLCanvasElement;
-	let videoEl: HTMLVideoElement;
-	let overlayCanvas: HTMLCanvasElement;
+	let videoEl = $state<HTMLVideoElement>();
+	let overlayCanvas = $state<HTMLCanvasElement>();
 
 	// ─── Engine / detector ────────────────────────────────────────────────────
 	let engine: GameEngine | null = null;
@@ -207,7 +207,7 @@
 	class="relative h-full min-h-[600px] w-full overflow-hidden bg-[#0a0a0a] font-boxing select-none"
 >
 	<!-- THREE.js canvas -->
-	<canvas bind:this={gameCanvas} class="block h-full w-full" />
+	<canvas bind:this={gameCanvas} class="block h-full w-full"></canvas>
 
 	<!-- ── Loading overlay ────────────────────────────────────────────────────── -->
 	{#if !isLoaded}
@@ -219,7 +219,7 @@
 					<div
 						class="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-600 transition-all duration-300"
 						style="width: {loadingProgress}%"
-					/>
+					></div>	
 				</div>
 				<p class="m-0 text-sm tracking-[0.05em] text-[#888]">{loadingMessage}</p>
 			</div>
@@ -314,7 +314,7 @@
 					<div
 						class="h-full rounded-sm bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-300"
 						style="width: {playerHP}%"
-					/>
+					></div>
 				</div>
 				<span class="min-w-[28px] text-[0.8rem] font-bold text-white tabular-nums">{playerHP}</span>
 			</div>
@@ -344,7 +344,7 @@
 					<div
 						class="float-right h-full rounded-sm bg-gradient-to-l from-red-500 to-red-400 transition-all duration-300"
 						style="width: {cpuHP}%"
-					/>
+					></div>
 				</div>
 				<span class="min-w-[28px] text-right text-[0.8rem] font-bold text-white tabular-nums"
 					>{cpuHP}</span
@@ -352,7 +352,7 @@
 			</div>
 		</div>
 
-		<!-- Webcam + skeleton overlay (bottom-left pip) -->
+		<!-- Webcam + skeleton overlay -->
 		<div
 			class="absolute bottom-4 left-4 z-10 aspect-[4/3] w-36 overflow-hidden rounded-lg
                 border border-white/10 shadow-[0_4px_24px_rgba(0,0,0,0.7)]"
@@ -364,14 +364,14 @@
 				autoplay
 				muted
 				playsinline
-			/>
-			<!-- Skeleton overlay canvas (NOT mirrored — drawPoseSkeleton mirrors X internally) -->
+			></video>
+			<!-- Skeleton overlay canvas -->
 			<canvas
 				bind:this={overlayCanvas}
 				width="144"
 				height="108"
 				class="absolute inset-0 h-full w-full"
-			/>
+			></canvas>
 			<!-- Status badge -->
 			<div
 				class="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 text-center
@@ -381,7 +381,7 @@
 			</div>
 		</div>
 
-		<!-- Gesture feedback badge (bottom centre, above pip) -->
+		<!-- Gesture feedback badge -->
 		{#if lastGesture}
 			{#key lastGesture}
 				<div
@@ -397,7 +397,7 @@
 			{/key}
 		{/if}
 
-		<!-- Combo flash (centre) -->
+		<!-- Combo flash -->
 		{#if combo >= 2}
 			{#key combo}
 				<div

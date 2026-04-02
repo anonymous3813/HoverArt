@@ -359,11 +359,26 @@
     ctx.restore();
   }
 
-  function clearCanvas() {
+  // ── Public API ──────────────────────────────────────────────────────────────
+
+  /**
+   * Clear the drawing canvas.
+   * @param emit  When false, skips calling onClear() — used for silent page switches.
+   */
+  function clearCanvas(emit = true) {
     const ctx = canvasEl.getContext('2d')!;
     ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
     strokes = [];
     handStates.forEach(hs => { hs.isDrawing = false; hs.currentStroke = []; });
+    if (emit) onClear();
+  }
+
+  /** Restore a previously saved page snapshot onto the canvas. */
+  function loadSnapshot(dataUrl: string) {
+    const ctx = canvasEl.getContext('2d')!;
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0);
+    img.src = dataUrl;
   }
 
   function exportCanvas() {
@@ -394,10 +409,12 @@
   }
 
   function clearFromPeer() {
-    clearCanvas();
+    clearCanvas(false); // don't re-broadcast
   }
 
-  export { clearCanvas, exportCanvas, getCanvasDataUrl, strokes, drawPeerStroke, clearFromPeer };
+  export { clearCanvas, loadSnapshot, exportCanvas, getCanvasDataUrl, strokes, drawPeerStroke, clearFromPeer };
+
+  // ── Badge derivations ───────────────────────────────────────────────────────
 
   function drawCursor(ctx: CanvasRenderingContext2D, x: number, y: number, g: string) {
     ctx.save();
@@ -407,6 +424,9 @@
       g === 'draw'         ? '#00f5ff' :
       g === 'erase'        ? '#ff4444' :
       g === 'color-select' ? pendingWheelColor :
+      g === 'l_shape'      ? '#ffdd57' :
+      g === 'thumb_up'     ? '#4eff91' :
+      g === 'thumb_down'   ? '#4eff91' :
                              '#ffffff44';
     ctx.lineWidth = 2;
     ctx.stroke();
@@ -420,6 +440,11 @@
     gesture === 'erase'        ? '⬜ Erasing' :
     gesture === 'color-select' ? '✌ Picking Color' :
     gesture === 'open-palm'    ? '🖐 Open Palm' :
+    gesture === 'l_shape'      ? '︻ Hold for Sidebar…' :
+    gesture === 'thumb_up'     ? '☝ Prev Page' :
+    gesture === 'thumb_down'   ? '👇 Next Page' :
+    gesture === 'pinky_up'     ? '☝ Pinky Up' :
+    gesture === 'quiet_coyote'  ? '🤘  Quiet Coyote' :
     gesture1 === 'draw'        ? '✏ Drawing (hand 2)' :
                                  '✋ Hovering'
   );
@@ -500,6 +525,14 @@
       <span class="text-white/55 min-w-[90px]">🖐 🖐 Both palms</span>
       <span>Hold to Clear</span>
     </div>
+    <div class="flex gap-2.5 text-[0.7rem] text-white/35">
+      <span class="text-white/55 min-w-[90px]">︻ L-shape</span>
+      <span>Hold 2s · Sidebar</span>
+    </div>
+    <div class="flex gap-2.5 text-[0.7rem] text-white/35">
+      <span class="text-white/55 min-w-[90px]">☝↑ / 👇↓</span>
+      <span>Prev / Next page</span>
+    </div>
   </div>
 </div>
 
@@ -538,6 +571,19 @@
     background: #ff444422;
     border-color: #ff444466;
     color: #ff6666;
+  }
+
+  .gesture-badge[data-gesture='l_shape'] {
+    background: #ffdd5722;
+    border-color: #ffdd5766;
+    color: #ffdd57;
+  }
+
+  .gesture-badge[data-gesture='point_up'],
+  .gesture-badge[data-gesture='point_down'] {
+    background: #4eff9122;
+    border-color: #4eff9166;
+    color: #4eff91;
   }
 
   .mood-badge {
