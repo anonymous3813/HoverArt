@@ -1,4 +1,4 @@
-import { blendGet, blendshapeTable } from '../face/blendshapeTable.js';
+import { blendGet, blendshapeTable } from '$lib/face/blendshapeTable';
 
 export type FaceSample = {
 	t: number;

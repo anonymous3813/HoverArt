@@ -1,5 +1,5 @@
-import { summarizeFace, type FaceSample } from '../imposter/faceSignals.js';
-import { analyzeVoiceProsody, type VoiceSnapshot } from '../imposter/voiceSignals.js';
+import { summarizeFace, type FaceSample } from './faceSignals';
+import { analyzeVoiceProsody, type VoiceSnapshot } from './voiceSignals';
 
 export function phase1FaceLieSignal(samples: FaceSample[]): {
 	score: number;

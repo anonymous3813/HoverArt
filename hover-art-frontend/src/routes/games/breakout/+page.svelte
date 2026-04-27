@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import FaceBreakoutGame from '$lib/components/FaceBreakoutGame.svelte';
+	import FaceBreakoutGame from './FaceBreakoutGame.svelte';
 	import { isLoggedIn } from '$lib/auth.svelte.ts';
 
 	onMount(() => {
-		if (!isLoggedIn()) goto('/login');
+		//if (!isLoggedIn()) goto('/login');
 	});
 </script>
 

@@ -1,4 +1,4 @@
-import { blendGet, blendshapeTable } from '../face/blendshapeTable.js';
+import { blendGet, blendshapeTable } from '$lib/face/blendshapeTable';
 
 export function mouthOpenFromBlendshapes(
 	categories: { categoryName: string; score: number }[] | undefined

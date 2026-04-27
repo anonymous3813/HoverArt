@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import { GameEngine } from '$lib/boxing/GameEngine';
-	import { PoseDetector, drawPoseSkeleton } from '$lib/boxing/PoseDetector';
+	import { GameEngine } from './GameEngine';
+	import { PoseDetector, drawPoseSkeleton } from './PoseDetector';
 
 	// ─── Props (Svelte 5 runes) ───────────────────────────────────────────────
 	interface Props {

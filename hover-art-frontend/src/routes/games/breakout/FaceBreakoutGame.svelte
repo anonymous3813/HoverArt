@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
-	import { faceHorizontalFromLandmarks, paddle01HighSensitivity } from '../breakout/faceHorizontal.js';
+	import { faceHorizontalFromLandmarks, paddle01HighSensitivity } from './faceHorizontal.js';
 	import {
 		createInitialState,
 		startGame,
 		updateGame,
 		drawBreakout,
 		type BreakoutState
-	} from '../breakout/gameEngine.js';
+	} from './gameEngine.js';
 
 	function computeCanvasSize(): { w: number; h: number } {
 		if (typeof window === 'undefined') return { w: 800, h: 600 };

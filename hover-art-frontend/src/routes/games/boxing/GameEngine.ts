@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { AnimationController, loadMixamoAnimations } from '$lib/boxing/AnimationController.ts';
+import { AnimationController, loadMixamoAnimations } from './AnimationController.ts';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const RING_HALF = 4.5;
@@ -304,7 +304,7 @@ export class GameEngine {
 		const dt = this.clock.getDelta();
 
 		if (this.isRunning) {
-			//this._updateCpuAI(dt);
+			this._updateCpuAI(dt);
 			this._updateTimer(dt);
 			this._updateCombo(dt);
 		}

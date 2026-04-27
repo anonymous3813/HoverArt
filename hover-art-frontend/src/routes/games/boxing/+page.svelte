@@ -1,6 +1,6 @@
 <!-- src/routes/boxing/+page.svelte -->
 <script>
-  import BoxingGame from '$lib/components/BoxingGame.svelte';
+  import BoxingGame from './BoxingGame.svelte';
 </script>
 
 <svelte:head>

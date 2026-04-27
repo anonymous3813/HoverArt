@@ -40,16 +40,23 @@
   let lastFpsTime = performance.now();
   let frameCount = 0;
 
+  const SMOOTH_SAMPLES = 5;
+  const width = 1280;
+  const height = 720;
+
   type HandState = {
     isDrawing: boolean;
     currentStroke: Point[];
-    posBuffer: Point[];
+    xBuffer: Float32Array;
+    yBuffer: Float32Array;
+    bufferIndex: number;
+    bufferCount: number;
     gesture: string;
   };
 
   const handStates: HandState[] = [
-    { isDrawing: false, currentStroke: [], posBuffer: [], gesture: 'none' },
-    { isDrawing: false, currentStroke: [], posBuffer: [], gesture: 'none' }
+    { isDrawing: false, currentStroke: [], xBuffer: new Float32Array(SMOOTH_SAMPLES), yBuffer: new Float32Array(SMOOTH_SAMPLES), bufferIndex: 0, bufferCount: 0, gesture: 'none' },
+    { isDrawing: false, currentStroke: [], xBuffer: new Float32Array(SMOOTH_SAMPLES), yBuffer: new Float32Array(SMOOTH_SAMPLES), bufferIndex: 0, bufferCount: 0, gesture: 'none' }
   ];
 
   let strokes: Stroke[] = [];
@@ -58,10 +65,6 @@
 
   const CLEAR_HOLD_MS = 1500;
   let bothPalmsStart = 0;
-
-  const SMOOTH_SAMPLES = 5;
-  const width = 1280;
-  const height = 720;
 
   onMount(async () => {
     try {
@@ -171,7 +174,8 @@
         if (handStates[i].isDrawing) finishHandStroke(i);
         if (i === 0 && handStates[0].gesture === 'color-select') brushColor = pendingWheelColor;
         handStates[i].gesture = 'none';
-        handStates[i].posBuffer = [];
+        handStates[i].bufferCount = 0;
+        handStates[i].bufferIndex = 0;
         if (i === 0) { gesture = 'none'; onGestureChange('none'); }
         if (i === 1) gesture1 = 'none';
         continue;
@@ -210,12 +214,18 @@
       const rawX = tip.x * canvasEl.width;
       const rawY = tip.y * canvasEl.height;
 
-      hs.posBuffer.push({ x: rawX, y: rawY });
-      if (hs.posBuffer.length > SMOOTH_SAMPLES) hs.posBuffer.shift();
-      const smoothed = hs.posBuffer.reduce(
-        (acc, p) => ({ x: acc.x + p.x / hs.posBuffer.length, y: acc.y + p.y / hs.posBuffer.length }),
-        { x: 0, y: 0 }
-      );
+      hs.xBuffer[hs.bufferIndex] = rawX;
+      hs.yBuffer[hs.bufferIndex] = rawY;
+      hs.bufferIndex = (hs.bufferIndex + 1) % SMOOTH_SAMPLES;
+      if (hs.bufferCount < SMOOTH_SAMPLES) hs.bufferCount++;
+
+      let sumX = 0;
+      let sumY = 0;
+      for (let j = 0; j < hs.bufferCount; j++) {
+        sumX += hs.xBuffer[j];
+        sumY += hs.yBuffer[j];
+      }
+      const smoothed = { x: sumX / hs.bufferCount, y: sumY / hs.bufferCount };
 
       if (hs.gesture === 'draw') {
         drawHandSegment(drawCtx, smoothed, i);
@@ -248,10 +258,10 @@
     const hs = handStates[handIndex];
     if (!hs.isDrawing) {
       hs.isDrawing = true;
-      hs.currentStroke = [{ ...pos }];
+      hs.currentStroke = [pos];
     } else {
       const prev = hs.currentStroke[hs.currentStroke.length - 1];
-      hs.currentStroke.push({ ...pos });
+      hs.currentStroke.push(pos);
       ctx.beginPath();
       ctx.moveTo(prev.x, prev.y);
       ctx.lineTo(pos.x, pos.y);

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import FlappyMouthGame from '$lib/components/FlappyMouthGame.svelte';
+	import FlappyMouthGame from './FlappyMouthGame.svelte';
 	import { isLoggedIn } from '$lib/auth.svelte.ts';
 
 	onMount(() => {
-		if (!isLoggedIn()) goto('/login');
+		//if (!isLoggedIn()) goto('/login');
 	});
 </script>
 

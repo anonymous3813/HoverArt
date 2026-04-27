@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
-	import { mouthOpenFromBlendshapes } from '../flappy/mouthOpenFromFace.js';
+	import { mouthOpenFromBlendshapes } from './mouthOpenFromFace.js';
 	import {
 		createInitialState,
 		startGame,
@@ -13,7 +13,7 @@
 		PIPE_GAP,
 		scaleFor,
 		type FlappyState
-	} from '../flappy/gameEngine.js';
+	} from './gameEngine.js';
 
 	function computeCanvasSize(): { w: number; h: number } {
 		if (typeof window === 'undefined') return { w: 800, h: 600 };

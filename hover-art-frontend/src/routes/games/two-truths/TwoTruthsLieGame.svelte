@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
-	import { sampleFaceFromBlendshapes, type FaceSample } from '../imposter/faceSignals.js';
-	import { createVoiceAnalyzer, type VoiceSnapshot } from '../imposter/voiceSignals.js';
-	import { phase1FaceLieSignal, phase2VoiceLieSignal } from '../twoTruths/phraseScores.js';
+	import { sampleFaceFromBlendshapes, type FaceSample } from './faceSignals.js';
+	import { createVoiceAnalyzer, type VoiceSnapshot } from './voiceSignals.js';
+	import { phase1FaceLieSignal, phase2VoiceLieSignal } from './phraseScores.js';
 
 	const BACKEND_URL = 'http://localhost:3001';
 	const RECORD_MAX_SEC = 14;
