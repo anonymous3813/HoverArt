@@ -24,6 +24,7 @@ export class SceneManager {
 	fighter2!: Fighter;
 
 	// Game state callbacks
+	onReady?: () => void;
 	onPlayerHP?: (hp: number) => void;
 	onCpuHP?: (hp: number) => void;
 	onTimer?: (time: number) => void;
@@ -100,7 +101,7 @@ export class SceneManager {
 		this.fighter2 = new Fighter(this.scene, new THREE.Vector3(0, 0, -70));
 
 		Promise.all([this.fighter1.init(), this.fighter2.init()]).then(() => {
-			this.startCutscene();
+			this.onReady?.();
 		});
 
 		// Orbit controls
@@ -123,25 +124,7 @@ export class SceneManager {
 		this.camera.lookAt(lookAt);
 	}
 
-	/*
-	private debugCaptureKeyListener() {
-		window.addEventListener("keydown", (e) => {
-			if (e.key === "c") {
-				const pos = this.camera.position.clone();
-				const target = this.controls.target.clone();
-
-				alert(
-					`📸 Camera Capture\n\n` +
-					`Position:\n  x: ${pos.x.toFixed(3)}\n  y: ${pos.y.toFixed(3)}\n  z: ${pos.z.toFixed(3)}\n\n` +
-					`Target:\n  x: ${target.x.toFixed(3)}\n  y: ${target.y.toFixed(3)}\n  z: ${target.z.toFixed(3)}`
-				);
-				console.log("camera", this.camera.position);
-				console.log("controls target", this.controls.target);
-				console.log("controls enabled", this.controls.enabled);
-			}
-		});
-	}*/
-
+	
 	startCutscene() {
 		this.cutsceneActive = true;
 		//this.controls.enabled = false;
@@ -334,14 +317,18 @@ export class SceneManager {
 		this.gameState = 'VICTORY';
 		this.onStateChange?.(this.gameState);
 		this.fighter1.animation.play('house dancing');
+		console.log("Game victory 1");
 		this.fighter2.animation.play('knockout', { once: true, clampWhenFinished: true });
+		console.log("Game victory 2");
 	}
 
 	triggerDefeat() {
 		this.gameState = 'DEFEAT';
 		this.onStateChange?.(this.gameState);
 		this.fighter1.animation.play('knockout', { once: true, clampWhenFinished: true });
+		console.log("Game over 1");
 		this.fighter2.animation.play('house dancing');
+		console.log("Game over 2");
 	}
 
 	playerGesture(gesture: string) {
