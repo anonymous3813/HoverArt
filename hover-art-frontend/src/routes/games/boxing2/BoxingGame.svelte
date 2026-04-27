@@ -7,7 +7,7 @@
 	let sceneManager: SceneManager;
 	let animationId: number;
 
-	// ─── UI State (Svelte 5 runes) ───────────────────────────────────────────
+	// ─── UI State
 	let isLoaded = $state(false);
 	let gameState = $state<
 		'MENU' | 'CUTSCENE' | 'CAM_INIT' | 'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'DRAW'

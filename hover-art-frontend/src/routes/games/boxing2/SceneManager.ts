@@ -4,7 +4,7 @@ import { Stadium } from './Stadium.ts';
 import { Crowd } from './Crowd.ts';
 import { ArenaEffects } from './ArenaEffects.ts';
 import { Lighting } from './Lighting.ts';
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+//import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Fighter } from './Fighter.ts';
 
 type CutsceneStep = (dt: number) => boolean;
@@ -59,8 +59,6 @@ export class SceneManager {
 	private cutsceneIndex = 0;
 	private cutsceneActive = false;
 
-	private camStart = new THREE.Vector3();
-	private camEnd = new THREE.Vector3();
 	private camT = 0;
 	private stepInitialized = false;
 	private shots = {
@@ -116,15 +114,8 @@ export class SceneManager {
 		this.controls.maxPolarAngle = Math.PI / 2.1;*/
 	}
 
-	// ────────────────────────────────────────────────
-	// 🎬 CUTSCENE SYSTEM
-	// ────────────────────────────────────────────────
-	private setCamera(pos: THREE.Vector3, lookAt: THREE.Vector3) {
-		this.camera.position.copy(pos);
-		this.camera.lookAt(lookAt);
-	}
+	// CUTSCENE SYSTEM
 
-	
 	startCutscene() {
 		this.cutsceneActive = true;
 		//this.controls.enabled = false;
@@ -139,7 +130,7 @@ export class SceneManager {
 
 			(dt) => {
 				if (!this.stepInitialized) {
-					this.fighter1.animation.play("jog");
+					this.fighter1.playAnimation("jog");
 
 					const shot = this.shots.fighter1Entrance;
 
@@ -169,7 +160,7 @@ export class SceneManager {
 			// Step 2: fighter 2 jogs from the other path
 			(dt) => {
 				if (!this.stepInitialized) {
-					this.fighter2.animation.play("jog");
+					this.fighter2.playAnimation("jog");
 
 					const shot = this.shots.fighter2Entrance;
 
@@ -198,8 +189,8 @@ export class SceneManager {
 			// Step 3: both fighters facing each other
 			(dt) => {
 				if (!this.stepInitialized) {
-					this.fighter1.animation.play("fighting idle");
-					this.fighter2.animation.play("fighting idle");
+					this.fighter1.playAnimation("fighting idle");
+					this.fighter2.playAnimation("fighting idle");
 					this.fighter1.lookAt(this.fighter2.model.position);
 					this.fighter2.lookAt(this.fighter1.model.position);
 					this.camT = 0;
@@ -276,7 +267,7 @@ export class SceneManager {
 		this.cutsceneActive = false;
 		this.fighter1.cutsceneLocked = false;
 		this.fighter2.cutsceneLocked = false;
-		
+
 		this.startFight();
 	}
 
@@ -287,8 +278,8 @@ export class SceneManager {
 	startFight() {
 		this.gameState = 'FIGHTING';
 		this.onStateChange?.(this.gameState);
-		this.fighter1.animation.play('fighting idle');
-		this.fighter2.animation.play('fighting idle');
+		this.fighter1.playAnimation('fighting idle');
+		this.fighter2.playAnimation('fighting idle');
 	}
 
 	restartFight() {
@@ -305,30 +296,49 @@ export class SceneManager {
 		this.onPlayerHP?.(100);
 		this.onCpuHP?.(100);
 		this.onTimer?.(180);
-		
+
 		this.gameState = 'FIGHTING';
 		this.onStateChange?.(this.gameState);
-		
-		this.fighter1.animation.play('fighting idle');
-		this.fighter2.animation.play('fighting idle');
+
+		this.fighter1.unlockAnimation();
+		this.fighter2.unlockAnimation();
+
+		this.fighter1.playAnimation('fighting idle');
+		this.fighter2.playAnimation('fighting idle');
 	}
 
 	triggerVictory() {
 		this.gameState = 'VICTORY';
 		this.onStateChange?.(this.gameState);
-		this.fighter1.animation.play('house dancing');
-		console.log("Game victory 1");
-		this.fighter2.animation.play('knockout', { once: true, clampWhenFinished: true });
-		console.log("Game victory 2");
+
+		this.fighter1.lockAnimation();
+		this.fighter2.lockAnimation();
+
+		this.fighter1.animation.play('house dancing', {
+			loop: true
+		});
+
+		this.fighter2.animation.play('knockout', {
+			once: true,
+			clampWhenFinished: true
+		});
 	}
 
 	triggerDefeat() {
 		this.gameState = 'DEFEAT';
 		this.onStateChange?.(this.gameState);
-		this.fighter1.animation.play('knockout', { once: true, clampWhenFinished: true });
-		console.log("Game over 1");
-		this.fighter2.animation.play('house dancing');
-		console.log("Game over 2");
+
+		this.fighter1.lockAnimation();
+		this.fighter2.lockAnimation();
+
+		this.fighter1.animation.play('knockout', {
+			once: true,
+			clampWhenFinished: true
+		});
+
+		this.fighter2.animation.play('house dancing', {
+			loop: true
+		});
 	}
 
 	playerGesture(gesture: string) {
@@ -336,12 +346,12 @@ export class SceneManager {
 
 		if (gesture === 'blockStart') {
 			this.playerBlocking = true;
-			this.fighter1.animation.play('block', { fadeIn: 0.15 });
+			this.fighter1.playAnimation('block', { fadeIn: 0.15 });
 			return;
 		}
 		if (gesture === 'blockEnd') {
 			this.playerBlocking = false;
-			this.fighter1.animation.play('fighting idle', { fadeIn: 0.2 });
+			this.fighter1.playAnimation('fighting idle', { fadeIn: 0.2 });
 			return;
 		}
 		if (gesture === 'punchLeft' || gesture === 'punchRight') {
@@ -356,17 +366,17 @@ export class SceneManager {
 		const safetyTimer = setTimeout(() => {
 			if (this.playerPunching) {
 				this.playerPunching = false;
-				this.fighter1.animation.play('fighting idle', { fadeIn: 0.2 });
+				this.fighter1.playAnimation('fighting idle', { fadeIn: 0.2 });
 			}
 		}, 800);
 
 		const done = () => {
 			clearTimeout(safetyTimer);
 			this.playerPunching = false;
-			this.fighter1.animation.play('fighting idle', { fadeIn: 0.2 });
+			this.fighter1.playAnimation('fighting idle', { fadeIn: 0.2 });
 		};
 
-		this.fighter1.animation.play(type, {
+		this.fighter1.playAnimation(type, {
 			once: true,
 			fadeIn: 0.08,
 			fadeOut: 0.1,
@@ -384,12 +394,12 @@ export class SceneManager {
 		this.onAction?.(this.cpuBlocking ? '🛡 BLOCKED' : `−${dmg} HP`);
 
 		if (!this.cpuBlocking) {
-			this.fighter2.animation.play('body hit reaction', {
+			this.fighter2.playAnimation('body hit reaction', {
 				once: true,
 				fadeIn: 0.08,
 				onDone: () => {
 					if (this.gameState === 'FIGHTING') {
-						this.fighter2.animation.play('fighting idle', { fadeIn: 0.2 });
+						this.fighter2.playAnimation('fighting idle', { fadeIn: 0.2 });
 					}
 				}
 			});
@@ -407,17 +417,17 @@ export class SceneManager {
 		const safetyTimer = setTimeout(() => {
 			if (this.cpuPunching) {
 				this.cpuPunching = false;
-				this.fighter2.animation.play('fighting idle', { fadeIn: 0.2 });
+				this.fighter2.playAnimation('fighting idle', { fadeIn: 0.2 });
 			}
 		}, 800);
 
 		const done = () => {
 			clearTimeout(safetyTimer);
 			this.cpuPunching = false;
-			this.fighter2.animation.play('fighting idle', { fadeIn: 0.2 });
+			this.fighter2.playAnimation('fighting idle', { fadeIn: 0.2 });
 		};
 
-		this.fighter2.animation.play(type, {
+		this.fighter2.playAnimation(type, {
 			once: true,
 			fadeIn: 0.08,
 			onDone: done
@@ -430,12 +440,12 @@ export class SceneManager {
 		this.onAction?.(this.playerBlocking ? '🛡 BLOCKED' : `CPU −${dmg}`);
 
 		if (!this.playerBlocking) {
-			this.fighter1.animation.play('body hit reaction', {
+			this.fighter1.playAnimation('body hit reaction', {
 				once: true,
 				fadeIn: 0.08,
 				onDone: () => {
 					if (this.gameState === 'FIGHTING') {
-						this.fighter1.animation.play('fighting idle', { fadeIn: 0.2 });
+						this.fighter1.playAnimation('fighting idle', { fadeIn: 0.2 });
 					}
 				}
 			});
@@ -458,11 +468,11 @@ export class SceneManager {
 			this._cpuPunch(punch);
 		} else if (r < 0.75 && !this.cpuBlocking && !this.cpuPunching) {
 			this.cpuBlocking = true;
-			this.fighter2.animation.play('block', { fadeIn: 0.15 });
+			this.fighter2.playAnimation('block', { fadeIn: 0.15 });
 			setTimeout(() => {
 				this.cpuBlocking = false;
 				if (this.gameState === 'FIGHTING') {
-					this.fighter2.animation.play('fighting idle', { fadeIn: 0.2 });
+					this.fighter2.playAnimation('fighting idle', { fadeIn: 0.2 });
 				}
 			}, 600 + Math.random() * 600);
 		}
@@ -481,7 +491,7 @@ export class SceneManager {
 			this.timerAccum -= 1;
 			this.roundTimeLeft = Math.max(0, this.roundTimeLeft - 1);
 			this.onTimer?.(this.roundTimeLeft);
-			
+
 			if (this.roundTimeLeft <= 0) {
 				if (this.playerHP > this.cpuHP) this.triggerVictory();
 				else if (this.playerHP < this.cpuHP) this.triggerDefeat();
@@ -506,18 +516,31 @@ export class SceneManager {
 	// UPDATE LOOP
 	// ────────────────────────────────────────────────
 
+	private lastTime = 0;
+	private runningTime = 0;
+
 	update(time: number) {
-		this.crowd.update(time);
-		this.effects.update(time);
-		this.lighting.update(time);
+		// time is already in seconds (passed as time * 0.001 from BoxingGame.svelte)
+		const dt = this.lastTime > 0 ? time - this.lastTime : 0.016;
+		this.lastTime = time;
+
+		// Clamp delta to prevent huge jumps (e.g., tab switch)
+		const clampedDt = Math.min(dt, 0.1);
+
+		// Running time for continuous animations (crowd, effects, lighting)
+		this.runningTime += clampedDt;
+
+		this.crowd.update(this.runningTime);
+		this.effects.update(this.runningTime);
+		this.lighting.update(this.runningTime);
 
 		//this.controls.update();
 
-		if (this.fighter1) this.fighter1.update();
-		if (this.fighter2) this.fighter2.update();
+		if (this.fighter1) this.fighter1.update(clampedDt);
+		if (this.fighter2) this.fighter2.update(clampedDt);
 
-		this.updateCutscene(0.016); // or pass real delta
-		this._updateGameLogic(0.016);
+		this.updateCutscene(clampedDt);
+		this._updateGameLogic(clampedDt);
 	}
 
 	render() {
