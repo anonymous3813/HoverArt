@@ -1,43 +1,42 @@
-<script lang="ts">
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { setAuth } from '$lib/auth.svelte.ts';
-
-	const BACKEND_URL = 'http://localhost:3001';
-
-	let username = $state('');
-	let email = $state('');
-	let password = $state('');
-	let error = $state('');
-	let loading = $state(false);
-
-	async function submit() {
-		error = '';
-		if (!username.trim() || !email.trim() || !password) {
-			error = 'Please fill in all fields.';
-			return;
-		}
-		if (password.length < 6) {
-			error = 'Password must be at least 6 characters.';
-			return;
-		}
-		loading = true;
-		try {
-			const res = await fetch(`${BACKEND_URL}/auth/register`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username: username.trim(), email: email.trim(), password })
-			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error ?? 'Registration failed.');
-			setAuth(data.token, data.user);
-			goto('/whiteboard');
-		} catch (err: any) {
-			error = err.message;
-		} finally {
-			loading = false;
-		}
-	}
+<script lang="ts">import { onMount } from 'svelte';
+import { goto } from '$app/navigation';
+import { setAuth } from '$lib/auth.svelte.ts';
+const BACKEND_URL = 'http://localhost:3001';
+let username = $state('');
+let email = $state('');
+let password = $state('');
+let error = $state('');
+let loading = $state(false);
+async function submit() {
+    error = '';
+    if (!username.trim() || !email.trim() || !password) {
+        error = 'Please fill in all fields.';
+        return;
+    }
+    if (password.length < 6) {
+        error = 'Password must be at least 6 characters.';
+        return;
+    }
+    loading = true;
+    try {
+        const res = await fetch(`${BACKEND_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username.trim(), email: email.trim(), password })
+        });
+        const data = await res.json();
+        if (!res.ok)
+            throw new Error(data.error ?? 'Registration failed.');
+        setAuth(data.token, data.user);
+        goto('/whiteboard');
+    }
+    catch (err: any) {
+        error = err.message;
+    }
+    finally {
+        loading = false;
+    }
+}
 </script>
 
 <svelte:head>

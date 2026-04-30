@@ -1,12 +1,11 @@
-<script lang="ts">
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import TwoTruthsLieGame from '$lib/components/TwoTruthsLieGame.svelte';
-	import { isLoggedIn } from '$lib/auth.svelte.ts';
-
-	onMount(() => {
-		if (!isLoggedIn()) goto('/login');
-	});
+<script lang="ts">import { onMount } from 'svelte';
+import { goto } from '$app/navigation';
+import TwoTruthsLieGame from '$lib/components/TwoTruthsLieGame.svelte';
+import { isLoggedIn } from '$lib/auth.svelte.ts';
+onMount(() => {
+    if (!isLoggedIn())
+        goto('/login');
+});
 </script>
 
 <svelte:head>

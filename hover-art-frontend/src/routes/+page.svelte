@@ -6,13 +6,14 @@
 <div class="cursor" id="cursor"></div>
 <div class="cursor-dot" id="cursorDot"></div>
 
-<!-- NAV -->
+
 <nav>
   <a class="nav-logo" href="/">Hover<span>Art</span></a>
   <ul class="nav-links">
     <li><a href="#gestures">Gestures</a></li>
     <li><a href="#how">How It Works</a></li>
     <li><a href="/tutorial">Tutorial</a></li>
+    <li><a href="/omni">Omni</a></li>
     <li><a href="/games/imposter">Two Truths</a></li>
     <li><a href="/games/flappy">Flappy Mouth</a></li>
     <li><a href="/games/breakout">Face Breakout</a></li>
@@ -20,7 +21,7 @@
   <a href="#launch" class="nav-cta">Launch App →</a>
 </nav>
 
-<!-- HERO -->
+
 <section class="hero">
   <div class="orb orb-1"></div>
   <div class="orb orb-2"></div>
@@ -45,7 +46,7 @@
   </div>
 </section>
 
-<!-- STRIP -->
+
 <div class="strip">
   <span class="strip-label">Powered by</span>
   <div class="strip-items">
@@ -58,7 +59,7 @@
   </div>
 </div>
 
-<!-- GESTURES SECTION -->
+
 <section class="section" id="gestures">
   <span class="section-tag">// gesture_library</span>
   <h2 class="section-title">Three signs.<br>Infinite expression.</h2>
@@ -92,7 +93,7 @@
   </div>
 </section>
 
-<!-- HOW IT WORKS -->
+
 <section class="section" id="how" style="padding-top: 0;">
   <span class="section-tag">// pipeline</span>
   <h2 class="section-title">How it works.</h2>
@@ -122,7 +123,7 @@
   </div>
 </section>
 
-<!-- STATS -->
+
 <div class="stats-wrapper">
   <div class="stats-row">
     <div class="stat">
@@ -140,7 +141,7 @@
   </div>
 </div>
 
-<!-- CTA SECTION -->
+
 <section class="cta-section" id="launch">
   <div class="cta-bg"></div>
   <h2 class="cta-title">
@@ -150,6 +151,7 @@
   <p class="cta-sub">Open your browser. Allow camera access. Draw.</p>
   <div class="cta-actions">
     <a href="/whiteboard" class="btn-primary btn-large">Open the Canvas</a>
+    <a href="/omni" class="btn-primary btn-large">Omni extension &amp; skill tree →</a>
     <a href="/tutorial" class="btn-secondary btn-large">Take the Tutorial</a>
     <a href="/games/imposter" class="btn-secondary btn-large">Two Truths</a>
     <a href="/games/flappy" class="btn-secondary btn-large">Flappy Mouth</a>
@@ -157,110 +159,55 @@
   </div>
 </section>
 
-<!-- FOOTER -->
+
 <footer>
   <span>HoverArt — Draw Without Touching</span>
   <span>Built with MediaPipe + SvelteKit</span>
   <span>No data collected. No accounts. Just art.</span>
 </footer>
 
-<script>
-  import { onDestroy, onMount } from 'svelte';
-  
-  
-  onMount(() => {
-    /*const cursor = document.getElementById('cursor');
-    const dot = document.getElementById('cursorDot');
-    let mx = 0, my = 0, cx = 0, cy = 0;
-
-    document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });*/
-
-    /*function animCursor() {
-      cx += (mx - cx) * 0.12;
-      cy += (my - cy) * 0.12;
-      cursor.style.left = cx + 'px';
-      cursor.style.top = cy + 'px';
-      dot.style.left = mx + 'px';
-      dot.style.top = my + 'px';
-      requestAnimationFrame(animCursor);
-    }
-    animCursor();*/
-    
+<script>import { onDestroy, onMount } from 'svelte';
+onMount(() => {
     document.querySelectorAll('a, button').forEach(el => {
-      el.addEventListener('mouseenter', () => {
-        cursor.style.width = '40px';
-        cursor.style.height = '40px';
-        cursor.style.background = 'rgba(0,245,255,0.1)';
-      });
-      el.addEventListener('mouseleave', () => {
-        cursor.style.width = '20px';
-        cursor.style.height = '20px';
-        cursor.style.background = 'transparent';
-      });
+        el.addEventListener('mouseenter', () => {
+            cursor.style.width = '40px';
+            cursor.style.height = '40px';
+            cursor.style.background = 'rgba(0,245,255,0.1)';
+        });
+        el.addEventListener('mouseleave', () => {
+            cursor.style.width = '20px';
+            cursor.style.height = '20px';
+            cursor.style.background = 'transparent';
+        });
     });
-
     const observer = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.style.opacity = '1';
-          e.target.style.transform = 'translateY(0)';
-        }
-      });
+        entries.forEach(e => {
+            if (e.isIntersecting) {
+                e.target.style.opacity = '1';
+                e.target.style.transform = 'translateY(0)';
+            }
+        });
     }, { threshold: 0.1 });
-
     document.querySelectorAll('.gesture-card, .step, .stat').forEach(el => {
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(30px)';
-      el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-      observer.observe(el);
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(30px)';
+        el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(el);
     });
-
     document.querySelectorAll('.gesture-card').forEach((el, i) => {
-      el.style.transitionDelay = (i * 0.1) + 's';
+        el.style.transitionDelay = (i * 0.1) + 's';
     });
     document.querySelectorAll('.step').forEach((el, i) => {
-      el.style.transitionDelay = (i * 0.08) + 's';
+        el.style.transitionDelay = (i * 0.08) + 's';
     });
     document.querySelectorAll('.stat').forEach((el, i) => {
-      el.style.transitionDelay = (i * 0.1) + 's';
+        el.style.transitionDelay = (i * 0.1) + 's';
     });
-  });
-
+});
 </script>
 
 <style>
-  /*
-  :global(*, *::before, *::after) { box-sizing: border-box; margin: 0; padding: 0; }
-  :global(html) { scroll-behavior: smooth; }
-  :global(body) {
-    background: #070710;
-    color: #e0e0f0;
-    font-family: 'Space Mono', monospace;
-    overflow-x: hidden;
-    cursor: none;
-  }
-  :global(body::before) {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(0,245,255,0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,245,255,0.025) 1px, transparent 1px);
-    background-size: 60px 60px;
-    pointer-events: none;
-    z-index: 0;
-  }
-  :global(body::after) {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg, transparent, transparent 2px,
-      rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
-    );
-    pointer-events: none;
-    z-index: 9990;
-  }*/
+  
 
 
   nav {

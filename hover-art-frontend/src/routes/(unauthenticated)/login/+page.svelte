@@ -1,35 +1,37 @@
-<script lang="ts">
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { auth, setAuth } from '$lib/auth.svelte.ts';
-
-	const BACKEND_URL = 'http://localhost:3001';
-
-	let email = $state('');
-	let password = $state('');
-	let error = $state('');
-	let loading = $state(false);
-
-	async function submit() {
-		error = '';
-		if (!email.trim() || !password) { error = 'Please fill in all fields.'; return; }
-		loading = true;
-		try {
-			const res = await fetch(`${BACKEND_URL}/auth/login`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: email.trim(), password })
-			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error ?? 'Login failed.');
-			setAuth(data.token, data.user);
-			goto('/whiteboard');
-		} catch (err: any) {
-			error = err.message;
-		} finally {
-			loading = false;
-		}
-	}
+<script lang="ts">import { onMount } from 'svelte';
+import { goto } from '$app/navigation';
+import { auth, setAuth } from '$lib/auth.svelte.ts';
+const BACKEND_URL = 'http://localhost:3001';
+let email = $state('');
+let password = $state('');
+let error = $state('');
+let loading = $state(false);
+async function submit() {
+    error = '';
+    if (!email.trim() || !password) {
+        error = 'Please fill in all fields.';
+        return;
+    }
+    loading = true;
+    try {
+        const res = await fetch(`${BACKEND_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email.trim(), password })
+        });
+        const data = await res.json();
+        if (!res.ok)
+            throw new Error(data.error ?? 'Login failed.');
+        setAuth(data.token, data.user);
+        goto('/whiteboard');
+    }
+    catch (err: any) {
+        error = err.message;
+    }
+    finally {
+        loading = false;
+    }
+}
 </script>
 
 <svelte:head>

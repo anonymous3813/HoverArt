@@ -1,150 +1,147 @@
-<script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { io, type Socket } from 'socket.io-client';
-	import HandCanvas from '$lib/components/HandCanvas.svelte';
-	import { auth, clearAuth } from '$lib/auth.svelte.ts';
-
-	const BACKEND_URL = 'http://localhost:3001';
-
-	const JOYFUL_COLORS = ['#ff6b35', '#ffdd57', '#ff4ecd', '#ff8c00', '#ff3366', '#ffd700', '#ff69b4', '#ff4500'];
-	const NEUTRAL_COLORS = ['#ffffff', '#00f5ff', '#ff4ecd', '#ffdd57', '#4eff91', '#ff6b35', '#a78bfa', '#f87171'];
-
-	let brushColor = $state('#00f5ff');
-	let brushSize = $state(4);
-	let moodState = $state<'joyful' | 'neutral'>('neutral');
-	let handCanvas: HandCanvas | null = null;
-	let currentGesture = $state('none');
-
-	let presetColors = $derived(moodState === 'joyful' ? JOYFUL_COLORS : NEUTRAL_COLORS);
-
-	let socket: Socket | null = null;
-	let roomCode = $state('');
-	let joinInput = $state('');
-	let isInRoom = $state(false);
-	let peerCount = $state(0);
-	let roomError = $state('');
-	let copied = $state(false);
-
-	let showShareModal = $state(false);
-	let shareEmail = $state('');
-	let shareMessage = $state('');
-	let shareStatus = $state<'idle' | 'sending' | 'sent' | 'error'>('idle');
-	let shareError = $state('');
-
-	function handleGestureChange(g: string) {
-		currentGesture = g;
-	}
-
-	function handleStrokeComplete(stroke: { points: { x: number; y: number }[]; color: string; width: number }) {
-		if (!isInRoom || !socket) return;
-		socket.emit('stroke', { stroke });
-	}
-
-	onMount(() => {
-		socket = io(BACKEND_URL, { autoConnect: true });
-
-		socket.on('room-created', ({ code }: { code: string }) => {
-			roomCode = code;
-			isInRoom = true;
-			roomError = '';
-		});
-
-		socket.on('room-joined', ({ strokes, code }: { strokes: any[]; code: string }) => {
-			roomCode = code;
-			isInRoom = true;
-			roomError = '';
-			strokes.forEach((s) => handCanvas?.drawPeerStroke(s));
-		});
-
-		socket.on('room-error', ({ message }: { message: string }) => {
-			roomError = message;
-		});
-
-		socket.on('room-left', () => {
-			roomCode = '';
-			isInRoom = false;
-			peerCount = 0;
-		});
-
-		socket.on('peer-count', ({ count }: { count: number }) => {
-			peerCount = count;
-		});
-
-		socket.on('peer-stroke', ({ stroke }: { stroke: any }) => {
-			handCanvas?.drawPeerStroke(stroke);
-		});
-
-		socket.on('peer-clear', () => {
-			handCanvas?.clearFromPeer();
-		});
-	});
-
-	onDestroy(() => {
-		socket?.disconnect();
-	});
-
-	function createRoom() {
-		roomError = '';
-		socket?.emit('create-room');
-	}
-
-	function joinRoom() {
-		if (!joinInput.trim()) return;
-		roomError = '';
-		socket?.emit('join-room', { code: joinInput.trim() });
-	}
-
-	function leaveRoom() {
-		socket?.emit('leave-room');
-		joinInput = '';
-	}
-
-	function handleClear() {
-		handCanvas?.clearCanvas();
-		if (isInRoom) socket?.emit('clear-canvas');
-	}
-
-	function handleGestureClear() {
-		if (isInRoom) socket?.emit('clear-canvas');
-	}
-
-	async function copyCode() {
-		await navigator.clipboard.writeText(roomCode);
-		copied = true;
-		setTimeout(() => (copied = false), 1800);
-	}
-
-	function openShareModal() {
-		shareEmail = '';
-		shareMessage = '';
-		shareStatus = 'idle';
-		shareError = '';
-		showShareModal = true;
-	}
-
-	async function sendEmail() {
-		if (!shareEmail.trim()) return;
-		shareStatus = 'sending';
-		shareError = '';
-
-		const imageData = handCanvas?.getCanvasDataUrl() ?? '';
-
-		try {
-			const res = await fetch(`${BACKEND_URL}/share-email`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ to: shareEmail.trim(), imageData, message: shareMessage.trim() })
-			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error ?? 'Unknown error');
-			shareStatus = 'sent';
-			setTimeout(() => { showShareModal = false; shareStatus = 'idle'; }, 2000);
-		} catch (err: any) {
-			shareStatus = 'error';
-			shareError = err.message;
-		}
-	}
+<script lang="ts">import { onMount, onDestroy } from 'svelte';
+import { goto } from '$app/navigation';
+import { io, type Socket } from 'socket.io-client';
+import HandCanvas from '$lib/components/HandCanvas.svelte';
+import { auth, clearAuth } from '$lib/auth.svelte.ts';
+const BACKEND_URL = 'http://localhost:3001';
+const JOYFUL_COLORS = ['#ff6b35', '#ffdd57', '#ff4ecd', '#ff8c00', '#ff3366', '#ffd700', '#ff69b4', '#ff4500'];
+const NEUTRAL_COLORS = ['#ffffff', '#00f5ff', '#ff4ecd', '#ffdd57', '#4eff91', '#ff6b35', '#a78bfa', '#f87171'];
+let brushColor = $state('#00f5ff');
+let brushSize = $state(4);
+let moodState = $state<'joyful' | 'neutral'>('neutral');
+let handCanvas: HandCanvas | null = null;
+let currentGesture = $state('none');
+let presetColors = $derived(moodState === 'joyful' ? JOYFUL_COLORS : NEUTRAL_COLORS);
+let socket: Socket | null = null;
+let roomCode = $state('');
+let joinInput = $state('');
+let isInRoom = $state(false);
+let peerCount = $state(0);
+let roomError = $state('');
+let copied = $state(false);
+let showShareModal = $state(false);
+let shareEmail = $state('');
+let shareMessage = $state('');
+let shareStatus = $state<'idle' | 'sending' | 'sent' | 'error'>('idle');
+let shareError = $state('');
+function handleGestureChange(g: string) {
+    currentGesture = g;
+}
+function handleStrokeComplete(stroke: {
+    points: {
+        x: number;
+        y: number;
+    }[];
+    color: string;
+    width: number;
+}) {
+    if (!isInRoom || !socket)
+        return;
+    socket.emit('stroke', { stroke });
+}
+onMount(() => {
+    socket = io(BACKEND_URL, { autoConnect: true });
+    socket.on('room-created', ({ code }: {
+        code: string;
+    }) => {
+        roomCode = code;
+        isInRoom = true;
+        roomError = '';
+    });
+    socket.on('room-joined', ({ strokes, code }: {
+        strokes: any[];
+        code: string;
+    }) => {
+        roomCode = code;
+        isInRoom = true;
+        roomError = '';
+        strokes.forEach((s) => handCanvas?.drawPeerStroke(s));
+    });
+    socket.on('room-error', ({ message }: {
+        message: string;
+    }) => {
+        roomError = message;
+    });
+    socket.on('room-left', () => {
+        roomCode = '';
+        isInRoom = false;
+        peerCount = 0;
+    });
+    socket.on('peer-count', ({ count }: {
+        count: number;
+    }) => {
+        peerCount = count;
+    });
+    socket.on('peer-stroke', ({ stroke }: {
+        stroke: any;
+    }) => {
+        handCanvas?.drawPeerStroke(stroke);
+    });
+    socket.on('peer-clear', () => {
+        handCanvas?.clearFromPeer();
+    });
+});
+onDestroy(() => {
+    socket?.disconnect();
+});
+function createRoom() {
+    roomError = '';
+    socket?.emit('create-room');
+}
+function joinRoom() {
+    if (!joinInput.trim())
+        return;
+    roomError = '';
+    socket?.emit('join-room', { code: joinInput.trim() });
+}
+function leaveRoom() {
+    socket?.emit('leave-room');
+    joinInput = '';
+}
+function handleClear() {
+    handCanvas?.clearCanvas();
+    if (isInRoom)
+        socket?.emit('clear-canvas');
+}
+function handleGestureClear() {
+    if (isInRoom)
+        socket?.emit('clear-canvas');
+}
+async function copyCode() {
+    await navigator.clipboard.writeText(roomCode);
+    copied = true;
+    setTimeout(() => (copied = false), 1800);
+}
+function openShareModal() {
+    shareEmail = '';
+    shareMessage = '';
+    shareStatus = 'idle';
+    shareError = '';
+    showShareModal = true;
+}
+async function sendEmail() {
+    if (!shareEmail.trim())
+        return;
+    shareStatus = 'sending';
+    shareError = '';
+    const imageData = handCanvas?.getCanvasDataUrl() ?? '';
+    try {
+        const res = await fetch(`${BACKEND_URL}/share-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: shareEmail.trim(), imageData, message: shareMessage.trim() })
+        });
+        const data = await res.json();
+        if (!res.ok)
+            throw new Error(data.error ?? 'Unknown error');
+        shareStatus = 'sent';
+        setTimeout(() => { showShareModal = false; shareStatus = 'idle'; }, 2000);
+    }
+    catch (err: any) {
+        shareStatus = 'error';
+        shareError = err.message;
+    }
+}
 </script>
 
 <svelte:head>

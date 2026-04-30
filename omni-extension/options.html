@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Omni - Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #070710;
+      color: #e0e0f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #00f5ff;
+      margin-bottom: 30px;
+      font-size: 32px;
+    }
+    .section {
+      background: rgba(13,13,26,0.6);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: white;
+    }
+    .setting-item {
+      margin-bottom: 20px;
+    }
+    .setting-item label {
+      display: block;
+      font-size: 14px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 8px;
+    }
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-right: 8px;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .save-btn {
+      width: 100%;
+      padding: 14px;
+      background: #00f5ff;
+      color: #070710;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .save-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,245,255,0.4);
+    }
+    #successMsg {
+      display: none;
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #070710;
+      background: #34d399;
+    }
+    #jwtStatus {
+      margin-top: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      min-height: 1.2em;
+    }
+    #jwtStatus.error {
+      color: #fca5a5;
+    }
+    #jwtStatus.ok {
+      color: #6ee7b7;
+    }
+    .about-text {
+      font-size: 13px;
+      line-height: 1.55;
+      color: rgba(255,255,255,0.55);
+      margin-bottom: 12px;
+    }
+    input[type="text"].url-field {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.35);
+      color: #e0e0f0;
+      font-size: 14px;
+    }
+    textarea.jwt-field {
+      width: 100%;
+      min-height: 56px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.35);
+      color: #e0e0f0;
+      font-size: 12px;
+      font-family: ui-monospace, monospace;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Omni settings</h1>
+
+    <div class="section">
+      <h2>How Omni uses AI</h2>
+      <p class="about-text">
+        Voice is still handled in the browser (Chrome Web Speech). When the option below is on, your spoken command
+        is sent to the <strong>HoverArt Node backend</strong> you run locally, which calls <strong>OpenAI</strong>
+        (same <code>OPENAI_SECRET</code> as Two Truths) to turn the phrase into a small list of safe browser actions.
+        The extension then runs those steps; your API key never ships inside the extension package.
+      </p>
+      <p class="about-text">
+        <strong>Claude / Anthropic is not used here.</strong> Turn off the planner to fall back to simple keyword rules only.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Omni planner (OpenAI via backend)</h2>
+      <div class="setting-item">
+        <label class="checkbox-label">
+          <input type="checkbox" id="omniUseLlm" checked>
+          <span>Use LLM planner (requires backend running with OPENAI_SECRET)</span>
+        </label>
+      </div>
+      <div class="setting-item">
+        <label for="omniBackendUrl">Backend base URL (no trailing slash)</label>
+        <input type="text" class="url-field" id="omniBackendUrl" placeholder="http://127.0.0.1:3001" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="setting-item">
+        <label for="hoverartSiteUrl">HoverArt site URL (PDF defer / summaries link)</label>
+        <input type="text" class="url-field" id="hoverartSiteUrl" placeholder="http://localhost:5173" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="setting-item">
+        <label for="hoverArtJwt">HoverArt login JWT (Chrome → Omni projects & ChatGPT export)</label>
+        <textarea class="jwt-field" id="hoverArtJwt" rows="3" spellcheck="false" autocomplete="off" placeholder="Paste from HoverArt Omni tab: Copy JWT for extension"></textarea>
+        <p id="jwtStatus" aria-live="polite"></p>
+        <p class="about-text">
+          Being logged into HoverArt does not populate the extension by itself. Omni copies <code>hoverart_token</code>
+          into extension storage when it finds any open browser tab matching the HoverArt site URL above (after you log
+          in), or paste here / use HoverArt Omni → Copy JWT.
+        </p>
+      </div>
+      <p class="about-text">Start the backend from <code>hover-art-backend</code> with <code>npm start</code>. Test: <code>GET /api/omni/health</code>.</p>
+    </div>
+    <div class="section">
+      <h2>Voice Settings</h2>
+      <div class="setting-item">
+        <label for="voiceRate">Speech Rate: <span id="rateValue">1.1</span>x</label>
+        <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1.1">
+      </div>
+      <div class="setting-item">
+        <label for="voicePitch">Speech Pitch: <span id="pitchValue">1.0</span></label>
+        <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1.0">
+      </div>
+      <div class="setting-item">
+        <label class="checkbox-label">
+          <input type="checkbox" id="autoSpeak" checked>
+          <span>Auto-speak responses</span>
+        </label>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>Display Settings</h2>
+      <div class="setting-item">
+        <label class="checkbox-label">
+          <input type="checkbox" id="showNotifications" checked>
+          <span>Show notifications</span>
+        </label>
+      </div>
+      <div class="setting-item">
+        <label class="checkbox-label">
+          <input type="checkbox" id="floatingButton">
+          <span>Show floating button on pages</span>
+        </label>
+      </div>
+    </div>
+    
+    <button class="save-btn" id="saveBtn">Save Settings</button>
+    <div class="success-message" id="successMsg">Settings saved.</div>
+  </div>
+  
+  <script>
+    let jwtSaveTimer = null;
+
+    function persistHoverArtJwtFromField(reason) {
+      const raw = document.getElementById('hoverArtJwt').value;
+      const jwt = typeof raw === 'string' ? raw.trim() : '';
+      const jwtStatus = document.getElementById('jwtStatus');
+
+      chrome.storage.local.get(['settings', 'omniHoverArtJwt'], (data) => {
+        const prev = data.settings || {};
+        
+        const payload = { omniHoverArtJwt: jwt, settings: { ...prev, hoverArtJwt: jwt } };
+
+        chrome.storage.local.set(payload, () => {
+          const err = chrome.runtime.lastError;
+          jwtStatus.classList.remove('error', 'ok');
+          if (err) {
+            jwtStatus.classList.add('error');
+            jwtStatus.textContent = 'Could not save JWT: ' + err.message;
+            return;
+          }
+          jwtStatus.classList.add('ok');
+          jwtStatus.textContent =
+            jwt.length > 80
+              ? 'JWT saved locally (' +
+                jwt.length +
+                ' chars).' +
+                (reason === 'manual' ? ' Other fields — click Save Settings below.' : '')
+              : jwt.length === 0
+                ? 'Cleared JWT from extension.'
+                : 'Token looks short (' +
+                  jwt.length +
+                  ' chars) — HoverArt JWTs are usually longer. Paste again if actions fail.';
+        });
+      });
+    }
+
+    // Load settings (JWT prefers dedicated key — survives awkward merges / older builds)
+    chrome.storage.local.get(['settings', 'omniHoverArtJwt'], (data) => {
+      const settings = data.settings || {};
+      const jwt =
+        typeof data.omniHoverArtJwt === 'string' && data.omniHoverArtJwt.trim()
+          ? data.omniHoverArtJwt.trim()
+          : typeof settings.hoverArtJwt === 'string'
+            ? settings.hoverArtJwt
+            : '';
+      document.getElementById('voiceRate').value = settings.voiceRate || 1.1;
+      document.getElementById('voicePitch').value = settings.voicePitch || 1.0;
+      document.getElementById('autoSpeak').checked = settings.autoSpeak !== false;
+      document.getElementById('showNotifications').checked = settings.showNotifications !== false;
+      document.getElementById('floatingButton').checked = settings.floatingButton || false;
+      document.getElementById('omniUseLlm').checked = settings.omniUseLlm !== false;
+      document.getElementById('omniBackendUrl').value =
+        settings.omniBackendUrl || 'http://127.0.0.1:3001';
+      document.getElementById('hoverartSiteUrl').value =
+        settings.hoverartSiteUrl || 'http://localhost:5173';
+      document.getElementById('hoverArtJwt').value = jwt;
+      document.getElementById('jwtStatus').textContent = jwt ? 'JWT loaded.' : '';
+
+      updateRateValue();
+      updatePitchValue();
+    });
+    
+    // Update value displays
+    document.getElementById('voiceRate').addEventListener('input', updateRateValue);
+    document.getElementById('voicePitch').addEventListener('input', updatePitchValue);
+    
+    function updateRateValue() {
+      document.getElementById('rateValue').textContent = document.getElementById('voiceRate').value;
+    }
+    
+    function updatePitchValue() {
+      document.getElementById('pitchValue').textContent = document.getElementById('voicePitch').value;
+    }
+    
+    // JWT: auto-save — no need to click Save Settings for this field only.
+    document.getElementById('hoverArtJwt').addEventListener('input', () => {
+      document.getElementById('jwtStatus').classList.remove('ok', 'error');
+      document.getElementById('jwtStatus').textContent = 'Saving…';
+      clearTimeout(jwtSaveTimer);
+      jwtSaveTimer = setTimeout(() => persistHoverArtJwtFromField('input'), 500);
+    });
+    document.getElementById('hoverArtJwt').addEventListener('blur', () => {
+      clearTimeout(jwtSaveTimer);
+      persistHoverArtJwtFromField('blur');
+    });
+
+    // Save settings
+    document.getElementById('saveBtn').addEventListener('click', () => {
+      chrome.storage.local.get(['settings', 'omniHoverArtJwt'], (data) => {
+        const prev = data.settings || {};
+        const jwtFromField =
+          typeof document.getElementById('hoverArtJwt').value === 'string'
+            ? document.getElementById('hoverArtJwt').value.trim()
+            : '';
+        const settings = {
+          ...prev,
+          voiceRate: parseFloat(document.getElementById('voiceRate').value),
+          voicePitch: parseFloat(document.getElementById('voicePitch').value),
+          autoSpeak: document.getElementById('autoSpeak').checked,
+          showNotifications: document.getElementById('showNotifications').checked,
+          floatingButton: document.getElementById('floatingButton').checked,
+          omniUseLlm: document.getElementById('omniUseLlm').checked,
+          omniBackendUrl:
+            document.getElementById('omniBackendUrl').value.trim() || 'http://127.0.0.1:3001',
+          hoverartSiteUrl:
+            document.getElementById('hoverartSiteUrl').value.trim() || 'http://localhost:5173',
+          hoverArtJwt: jwtFromField
+        };
+
+        chrome.storage.local.set({ settings, omniHoverArtJwt: jwtFromField }, () => {
+          const msg = document.getElementById('successMsg');
+          const err = chrome.runtime.lastError;
+          if (err) {
+            msg.style.display = 'block';
+            msg.style.background = '#f87171';
+            msg.textContent = 'Save failed: ' + err.message;
+          } else {
+            msg.style.display = 'block';
+            msg.style.background = '#34d399';
+            msg.textContent = 'Settings saved.';
+          }
+          setTimeout(() => {
+            msg.style.display = 'none';
+          }, 2800);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Omni - Skill Tree</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #070710;
+      color: #e0e0f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #00f5ff;
+      margin-bottom: 30px;
+      font-size: 32px;
+    }
+    .tree-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: rgba(13,13,26,0.6);
+      border: 1px solid rgba(0,245,255,0.3);
+      border-radius: 12px;
+      padding: 30px;
+    }
+    .skill-node {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .skill-node:hover {
+      border-color: rgba(0,245,255,0.5);
+      background: rgba(0,245,255,0.05);
+    }
+    .skill-name {
+      font-weight: 700;
+      font-size: 16px;
+      color: white;
+      margin-bottom: 5px;
+    }
+    .skill-desc {
+      font-size: 13px;
+      color: rgba(255,255,255,0.6);
+    }
+    .skill-stats {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #00f5ff;
+    }
+    .loading {
+      text-align: center;
+      color: rgba(255,255,255,0.5);
+      padding: 50px;
+    }
+  </style>
+</head>
+<body>
+  <h1>◈ Omni Skill Tree</h1>
+  <div class="tree-container" id="treeContainer">
+    <div class="loading">Loading skills...</div>
+  </div>
+  
+  <script>
+    async function loadSkills() {
+      const data = await chrome.storage.local.get('skills');
+      const skills = data.skills || [];
+      
+      const container = document.getElementById('treeContainer');
+      container.innerHTML = '';
+      
+      if (skills.length === 0) {
+        container.innerHTML = '<div class="loading">No skills learned yet. Start using Omni to grow your skill tree!</div>';
+        return;
+      }
+      
+      skills.forEach(skill => {
+        const node = document.createElement('div');
+        node.className = 'skill-node';
+        node.style.borderColor = skill.color || '#00f5ff';
+        
+        const timesUsed = skill.metadata?.timesUsed || 0;
+        const lastUsed = skill.metadata?.lastUsed ? new Date(skill.metadata.lastUsed).toLocaleString() : 'Never';
+        
+        node.innerHTML = `
+          <div class="skill-name">${skill.name}</div>
+          <div class="skill-desc">${skill.description}</div>
+          ${timesUsed > 0 ? `<div class="skill-stats">Used ${timesUsed} time${timesUsed > 1 ? 's' : ''} • Last: ${lastUsed}</div>` : ''}
+        `;
+        
+        container.appendChild(node);
+      });
+    }
+    
+    loadSkills();
+    
+    // Refresh every 5 seconds
+    setInterval(loadSkills, 5000);
+  </script>
+</body>
+</html>

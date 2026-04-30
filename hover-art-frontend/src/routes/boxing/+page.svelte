@@ -1,6 +1,5 @@
-<!-- src/routes/boxing/+page.svelte -->
-<script>
-  import BoxingGame from '$lib/components/BoxingGame.svelte';
+
+<script>import BoxingGame from '$lib/components/BoxingGame.svelte';
 </script>
 
 <svelte:head>
@@ -12,11 +11,7 @@
   />
 </svelte:head>
 
-<!--
-  The wrapper must have a defined height for the canvas to fill.
-  h-screen fills the full viewport; subtract your nav height if needed
-  e.g. h-[calc(100vh-4rem)]
--->
+
 <main class="w-full h-screen bg-[#0a0a0a]">
   <BoxingGame />
 </main>

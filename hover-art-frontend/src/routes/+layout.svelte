@@ -1,28 +1,22 @@
-﻿<script lang="ts">
-	import './layout.css';
-  import { onDestroy, onMount } from 'svelte';
-
-	const { children } = $props();
-
-	onMount(() => {
+﻿<script lang="ts">import './layout.css';
+import { onDestroy, onMount } from 'svelte';
+const { children } = $props();
+onMount(() => {
     const cursor = document.getElementById('cursor');
     const dot = document.getElementById('cursorDot');
     let mx = 0, my = 0, cx = 0, cy = 0;
-
     document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
-
     function animCursor() {
-      cx += (mx - cx) * 0.12;
-      cy += (my - cy) * 0.12;
-      cursor.style.left = cx + 'px';
-      cursor.style.top = cy + 'px';
-      dot.style.left = mx + 'px';
-      dot.style.top = my + 'px';
-      requestAnimationFrame(animCursor);
+        cx += (mx - cx) * 0.12;
+        cy += (my - cy) * 0.12;
+        cursor.style.left = cx + 'px';
+        cursor.style.top = cy + 'px';
+        dot.style.left = mx + 'px';
+        dot.style.top = my + 'px';
+        requestAnimationFrame(animCursor);
     }
     animCursor();
-  });
-
+});
 </script>
 
 <svelte:head>

@@ -3,64 +3,59 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 </svelte:head>
 
-<script lang="ts">
-  import { onMount } from 'svelte';
-
-  let currentLesson = $state(0);
-  let done = $state(false);
-  const quizAnswered: Record<string, boolean> = { draw: false, erase: false, hover: false };
-  const progress = $derived(done ? 100 : ((currentLesson + 1) / 3) * 100);
-
-  function goLesson(n: number) {
+<script lang="ts">import { onMount } from 'svelte';
+let currentLesson = $state(0);
+let done = $state(false);
+const quizAnswered: Record<string, boolean> = { draw: false, erase: false, hover: false };
+const progress = $derived(done ? 100 : ((currentLesson + 1) / 3) * 100);
+function goLesson(n: number) {
     currentLesson = n;
     done = false;
     setTimeout(() => {
-      document.querySelectorAll('.lesson-panel')[n]
-        ?.querySelectorAll('.step-item')
-        .forEach((el, i) => setTimeout(() => el.classList.add('visible'), i * 130 + 80));
+        document.querySelectorAll('.lesson-panel')[n]
+            ?.querySelectorAll('.step-item')
+            .forEach((el, i) => setTimeout(() => el.classList.add('visible'), i * 130 + 80));
     }, 60);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function finishTutorial() {
+}
+function finishTutorial() {
     done = true;
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function restartTutorial() {
+}
+function restartTutorial() {
     done = false;
     currentLesson = 0;
-  }
-
-  function checkAnswer(e: MouseEvent, isCorrect: boolean, lessonId: string) {
-    if (quizAnswered[lessonId]) return;
+}
+function checkAnswer(e: MouseEvent, isCorrect: boolean, lessonId: string) {
+    if (quizAnswered[lessonId])
+        return;
     quizAnswered[lessonId] = true;
     const btn = e.currentTarget as HTMLButtonElement;
     const quiz = btn.closest('.quiz-section')!;
     quiz.querySelectorAll<HTMLButtonElement>('.quiz-option').forEach(b => b.style.pointerEvents = 'none');
     if (isCorrect) {
-      btn.classList.add('correct');
-      quiz.querySelector('.quiz-result')!.innerHTML = '<span class="result-correct">✓ Correct! You\'ve got it.</span>';
-    } else {
-      btn.classList.add('wrong');
-      quiz.querySelectorAll<HTMLButtonElement>('.quiz-option[data-correct="true"]').forEach(b => b.classList.add('correct'));
-      quiz.querySelector('.quiz-result')!.innerHTML = '<span class="result-wrong">✗ Not quite — the correct answer is highlighted in green.</span>';
+        btn.classList.add('correct');
+        quiz.querySelector('.quiz-result')!.innerHTML = '<span class="result-correct">✓ Correct! You\'ve got it.</span>';
     }
-  }
-
-  onMount(() => {
+    else {
+        btn.classList.add('wrong');
+        quiz.querySelectorAll<HTMLButtonElement>('.quiz-option[data-correct="true"]').forEach(b => b.classList.add('correct'));
+        quiz.querySelector('.quiz-result')!.innerHTML = '<span class="result-wrong">✗ Not quite — the correct answer is highlighted in green.</span>';
+    }
+}
+onMount(() => {
     setTimeout(() => {
-      document.querySelectorAll('.lesson-panel')[0]
-        ?.querySelectorAll('.step-item')
-        .forEach((el, i) => setTimeout(() => el.classList.add('visible'), i * 150 + 300));
+        document.querySelectorAll('.lesson-panel')[0]
+            ?.querySelectorAll('.step-item')
+            .forEach((el, i) => setTimeout(() => el.classList.add('visible'), i * 150 + 300));
     }, 200);
-  });
+});
 </script>
 
-<!-- PROGRESS BAR -->
+
 <div class="progress-bar" style="width: {progress}%;"></div>
 
-<!-- NAV -->
+
 <nav>
   <a class="nav-logo" href="/">Hover<span>Art</span></a>
   <a class="nav-back" href="/">← Back to home</a>
@@ -68,14 +63,14 @@
 
 {#if !done}
 
-<!-- HERO -->
+
 <div class="tutorial-hero">
   <div class="tutorial-eyebrow">// gesture_tutorial</div>
   <h1 class="tutorial-title">Learn the Signs</h1>
   <p class="tutorial-sub">Three gestures, mastered in five minutes. Follow each lesson to get comfortable before you open the canvas.</p>
 </div>
 
-<!-- TABS -->
+
 <div class="tabs-wrapper">
   <div class="lesson-nav">
     <button class="lesson-tab" class:active={currentLesson===0} class:tab-cyan={currentLesson===0} on:click={() => goLesson(0)}>
@@ -90,10 +85,10 @@
   </div>
 </div>
 
-<!-- LESSONS -->
+
 <div class="lessons-container">
 
-  <!-- DRAW -->
+  
   <div class="lesson-panel" class:hidden={currentLesson !== 0} data-id="draw">
     <div class="lesson-header">
       <div class="lesson-number ln-cyan">01</div>
@@ -154,7 +149,7 @@
     </div>
   </div>
 
-  <!-- ERASE -->
+  
   <div class="lesson-panel" class:hidden={currentLesson !== 1} data-id="erase">
     <div class="lesson-header">
       <div class="lesson-number ln-pink">02</div>
@@ -228,7 +223,7 @@
     </div>
   </div>
 
-  <!-- HOVER -->
+  
   <div class="lesson-panel" class:hidden={currentLesson !== 2} data-id="hover">
     <div class="lesson-header">
       <div class="lesson-number ln-violet">03</div>
@@ -304,11 +299,11 @@
     </div>
   </div>
 
-</div><!-- /lessons-container -->
+</div>
 
 {:else}
 
-<!-- DONE STATE -->
+
 <div class="all-done">
   <span class="done-emoji">🎨</span>
   <h2 class="done-title">You're <span class="accent">ready.</span></h2>

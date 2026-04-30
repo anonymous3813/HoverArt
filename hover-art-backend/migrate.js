@@ -1,14 +1,11 @@
 import './bootstrap-env.js';
 import pg from 'pg';
-
 const { Client } = pg;
 const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
 });
-
 await client.connect();
-
 await client.query(`
   CREATE TABLE IF NOT EXISTS users (
     id            SERIAL PRIMARY KEY,
@@ -18,6 +15,5 @@ await client.query(`
     created_at    TIMESTAMPTZ  DEFAULT NOW()
   )
 `);
-
 console.log('users table ready.');
 await client.end();
