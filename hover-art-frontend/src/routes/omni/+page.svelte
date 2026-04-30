@@ -6,7 +6,8 @@
 import SkillTree from '$lib/components/SkillTree.svelte';
 import type { Skill } from '$lib/types/skill';
 import { auth } from '$lib/auth.svelte.ts';
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+import { getBackendUrl } from '$lib/backendUrl';
+const BACKEND_URL = getBackendUrl();
 let omniPane: 'home' | 'summaries' | 'projects' = $state('home');
 type SummaryRow = {
     id: number;

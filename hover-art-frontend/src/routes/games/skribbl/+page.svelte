@@ -1,18 +1,11 @@
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-<svelte:head>
-  <title>HoverArt — Skribbl Mode</title>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
-</svelte:head>
-
-<script lang="ts">import { onMount, onDestroy, tick } from 'svelte';
-interface Player {
-=======
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
+  import { getBackendUrl } from '$lib/backendUrl';
+
+  const BACKEND_URL = getBackendUrl();
 
   // ─── Types ────────────────────────────────────────────────────────────
   interface Player {
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     id: string;
     name: string;
     score: number;
@@ -44,48 +37,6 @@ const COLORS = [
 let phase = $state<Phase>('lobby');
 let players = $state<Player[]>([
     { id: 'p1', name: 'Player 1', score: 0, isAI: false, guessedThisRound: false }
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-]);
-let newName = $state('');
-let drawerIdx = $state(0);
-let round = $state(1);
-let totalRounds = $state(3);
-let roundDuration = $state(60);
-let secretWord = $state('');
-let wordChoices = $state<string[]>([]);
-let timerSec = $state(80);
-let countdown = $state(3);
-let chat = $state<ChatMsg[]>([]);
-let guessInput = $state('');
-let roundWordReveal = $state('');
-let canvas = $state<HTMLCanvasElement>(null!);
-let videoEl = $state<HTMLVideoElement>(null!);
-let previewEl = $state<HTMLVideoElement>(null!);
-let cursorEl: HTMLDivElement;
-let ctx = $state<CanvasRenderingContext2D | null>(null);
-let brushColor = $state('#00f5ff');
-let brushSize = $state(6);
-let gestureMode = $state<GestureMode>('hover');
-let prevX: number | null = null;
-let prevY: number | null = null;
-let cursorPos = $state<{
-    x: number;
-    y: number;
-} | null>(null);
-let handsReady = $state(false);
-let camActive = $state(false);
-let aiThinking = $state(false);
-let timerIv: ReturnType<typeof setInterval> | null = null;
-let cdIv: ReturnType<typeof setInterval> | null = null;
-let aiIv: ReturnType<typeof setInterval> | null = null;
-let handsInst: any = null;
-const drawer = $derived(players[drawerIdx]);
-const isDrawer = $derived(drawer?.id === 'p1');
-const ranked = $derived([...players].sort((a, b) => b.score - a.score));
-const wordMask = $derived(secretWord.split('').map((c) => (c === ' ' ? '  ' : '_')).join(' '));
-const allGuessed = $derived(players.filter(p => p.id !== drawer?.id).every(p => p.guessedThisRound));
-function loadScript(src: string): Promise<void> {
-=======
   ]);
   let newName     = $state('');
   let drawerIdx   = $state(0);
@@ -136,7 +87,6 @@ function loadScript(src: string): Promise<void> {
 
   // ─── Script loader ────────────────────────────────────────────────────
   function loadScript(src: string): Promise<void> {
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     return new Promise((res, rej) => {
         if (document.querySelector(`script[src="${src}"]`)) {
             res();
@@ -256,10 +206,6 @@ function onHandResults(results: any) {
         ctx.globalCompositeOperation = 'source-over';
         prevX = prevY = null;
     }
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-    else if (mode === 'draw') {
-        ctx.globalCompositeOperation = 'source-over';
-=======
   }
 
   // ─── Canvas ───────────────────────────────────────────────────────────
@@ -464,7 +410,6 @@ Respond with ONLY the JSON array, no explanation.`
         if (phase !== 'drawing') break;
         if (stroke.length < 2) continue;
         ctx.beginPath();
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
         ctx.strokeStyle = brushColor;
         ctx.lineWidth = brushSize;
         ctx.lineCap = 'round';
@@ -646,7 +591,7 @@ async function aiGuess(ai: Player) {
         const priorText = prior.length > 0
             ? `You already guessed wrong: ${prior.join(', ')}. Do NOT guess those again.`
             : '';
-        const resp = await fetch('http://localhost:3001/claude', {
+        const resp = await fetch(`${BACKEND_URL}/claude`, {
             method: 'POST',
             body: JSON.stringify({
                 model: 'claude-sonnet-4-20250514',
@@ -683,7 +628,7 @@ async function aiDraw(word: string) {
         return;
     aiThinking = true;
     try {
-        const resp = await fetch('http://localhost:3001/claude', {
+        const resp = await fetch(`${BACKEND_URL}/claude`, {
             method: 'POST',
             body: JSON.stringify({
                 model: 'claude-sonnet-4-20250514',
@@ -739,29 +684,6 @@ function submitChatMsg(pid: string, pname: string, text: string, isAI = false) {
     const correct = text.toLowerCase().trim() === secretWord.toLowerCase();
     chat = [...chat, { playerId: pid, playerName: pname, text, correct, ts: Date.now() }];
     if (correct) {
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-        const p = players.find(pl => pl.id === pid);
-        if (p && !p.guessedThisRound) {
-            const pts = Math.max(10, Math.floor(timerSec * 1.5));
-            const currentDrawer = players[drawerIdx];
-            const updatedPlayers = players.map(pl => {
-                if (pl.id === pid)
-                    return { ...pl, score: pl.score + pts, guessedThisRound: true };
-                if (pl.id === currentDrawer?.id)
-                    return { ...pl, score: pl.score + 40 };
-                return pl;
-            });
-            players = updatedPlayers;
-            pushSystem(`🎉 ${pname} guessed it! +${pts} pts`);
-            const everyoneGuessed = updatedPlayers
-                .filter(pl => pl.id !== currentDrawer?.id)
-                .every(pl => pl.guessedThisRound);
-            if (everyoneGuessed) {
-                clearInterval(timerIv!);
-                endRound();
-            }
-        }
-=======
       const p = players.find(pl => pl.id === pid);
       if (p && !p.guessedThisRound) {
         const pts = Math.max(10, Math.floor(timerSec * 1.5));
@@ -773,7 +695,6 @@ function submitChatMsg(pid: string, pname: string, text: string, isAI = false) {
         pushSystem(`🎉 ${pname} guessed it! +${pts} pts`);
         if (allGuessed) { clearInterval(timerIv!); endRound(); }
       }
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     }
     scrollChat();
 }
@@ -783,14 +704,6 @@ function handleGuessKey(e: KeyboardEvent) {
 }
 function submitPlayerGuess() {
     const text = guessInput.trim();
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-    if (!text)
-        return;
-    const me = players.find(p => p.id === 'p1')!;
-    guessInput = '';
-    if (phase === 'drawing' && !isDrawer && !me.guessedThisRound) {
-        submitChatMsg('p1', me.name, text);
-=======
     if (!text || phase !== 'drawing') return;
     const me = players.find(p => p.id === 'p1')!;
     guessInput = '';
@@ -800,7 +713,6 @@ function submitPlayerGuess() {
       scrollChat();
     } else {
       submitChatMsg('p1', me.name, text);
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     }
     else {
         chat = [...chat, { playerId: 'p1', playerName: me.name, text, correct: false, ts: Date.now() }];
@@ -820,23 +732,9 @@ async function scrollChat() {
 function endRound() {
     phase = 'roundend';
     roundWordReveal = secretWord;
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-    if (timerIv)
-        clearInterval(timerIv);
-    const currentDrawer = players[drawerIdx];
-    const anyoneGuessed = players.some(p => p.id !== currentDrawer?.id && p.guessedThisRound);
-    if (!anyoneGuessed && currentDrawer) {
-        players = players.map(p => p.id === currentDrawer.id ? { ...p, score: p.score + 20 } : p);
-        pushSystem(`⏱ Time's up! Nobody guessed — ${currentDrawer.name} gets a consolation +20 pts`);
-    }
-    else {
-        pushSystem(`⏱ Time's up! The word was "${secretWord}"`);
-    }
-=======
     if (timerIv) clearInterval(timerIv);
     pushSystem(`⏱ Time's up! The word was "${secretWord}"`);
 
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     setTimeout(() => {
         drawerIdx = (drawerIdx + 1) % players.length;
         if (drawerIdx === 0) {
@@ -901,21 +799,12 @@ $effect(() => {
 });
 </script>
 
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-
-<div class="fixed inset-0 pointer-events-none z-0" style="
-  background-image: linear-gradient(rgba(0,245,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,245,255,0.025) 1px, transparent 1px);
-  background-size: 60px 60px;
-"></div>
-=======
 <svelte:head>
 	<title>HoverArt — Gesture Canvas</title>
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
 </svelte:head>
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
 
 
 <nav class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4"
@@ -1029,101 +918,6 @@ $effect(() => {
     </div>
   </div>
 
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-  
-  {:else if phase === 'countdown'}
-  <div class="flex flex-col items-center justify-center min-h-screen gap-6">
-    <div class="text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.3)">Round {round} of {totalRounds}</div>
-    <div class="font-syne font-black text-white" style="font-size:clamp(5rem,15vw,10rem);line-height:1;
-      text-shadow:0 0 60px rgba(0,245,255,0.5);color:#00f5ff">{countdown}</div>
-    <div class="text-sm" style="color:rgba(255,255,255,0.5)">
-      <span style="color:#00f5ff">{drawer?.name}</span> is drawing…
-    </div>
-  </div>
-
-  
-  {:else if phase === 'wordpick'}
-  <div class="flex flex-col items-center justify-center min-h-screen gap-8 px-6">
-    {#if isDrawer}
-      <div class="text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.3)">// choose_your_word</div>
-      <h2 class="font-syne font-black text-white text-3xl tracking-tight">Pick a word to draw</h2>
-      <div class="flex gap-4 flex-wrap justify-center">
-        {#each wordChoices as w}
-          <button onclick={() => pickWord(w)}
-            class="px-8 py-5 font-syne font-black text-2xl uppercase tracking-wide transition-all"
-            style="border:1px solid rgba(0,245,255,0.25);color:#00f5ff;background:rgba(0,245,255,0.05)"
-            onmouseenter={(e)=>{(e.currentTarget as HTMLElement).style.background='rgba(0,245,255,0.12)';(e.currentTarget as HTMLElement).style.boxShadow='0 0 30px rgba(0,245,255,0.2)'}}
-            onmouseleave={(e)=>{(e.currentTarget as HTMLElement).style.background='rgba(0,245,255,0.05)';(e.currentTarget as HTMLElement).style.boxShadow='none'}}>
-            {w}
-          </button>
-        {/each}
-      </div>
-      <div class="text-xs" style="color:rgba(255,255,255,0.25)">Auto-picks in 10s if not chosen</div>
-    {:else}
-      <div class="font-syne font-black text-white text-4xl">
-        <span style="color:#00f5ff">{drawer?.name}</span> is choosing…
-      </div>
-      <div class="flex gap-2">
-        {#each [0,1,2] as _}
-          <div class="w-3 h-3 rounded-full animate-pulse" style="background:#00f5ff;animation-delay:{_*200}ms"></div>
-        {/each}
-      </div>
-    {/if}
-  </div>
-
-  
-  {:else if phase === 'drawing' || phase === 'roundend'}
-
-  
-  <div class="flex h-screen pt-16 gap-px" style="background:rgba(255,255,255,0.05)">
-
-    
-    <aside class="flex flex-col gap-px" style="width:220px;flex-shrink:0">
-      
-      <div class="flex-1 overflow-y-auto" style="background:#0a0a14">
-        <div class="px-4 py-3 text-xs tracking-widest uppercase sticky top-0"
-             style="color:rgba(255,255,255,0.25);background:#0a0a14;border-bottom:1px solid rgba(255,255,255,0.07)">
-          // scores
-        </div>
-        {#each ranked as p, i}
-          <div class="flex items-center gap-2 px-3 py-2.5"
-               style="border-bottom:1px solid rgba(255,255,255,0.04);{p.id===drawer?.id?'background:rgba(0,245,255,0.04)':''}">
-            <span class="text-xs w-4 text-center font-mono" style="color:rgba(255,255,255,0.2)">{i+1}</span>
-            <span class="text-sm flex-1 truncate"
-                  style="color:{p.id===drawer?.id?'#00f5ff':p.isAI?'#a78bfa':p.guessedThisRound?'#4eff91':'rgba(255,255,255,0.7)'}">
-              {p.id===drawer?.id?'✏ ':p.guessedThisRound?'✓ ':''}{p.name}
-            </span>
-            <span class="text-xs font-mono" style="color:rgba(255,255,255,0.5)">{p.score}</span>
-          </div>
-        {/each}
-      </div>
-
-      
-      {#if isDrawer && phase === 'drawing'}
-      <div class="relative" style="background:#070710;height:150px;border-top:1px solid rgba(255,255,255,0.07)">
-        <div class="absolute inset-0 overflow-hidden">
-          <video bind:this={previewEl} autoplay playsinline muted
-            class="w-full h-full object-cover scale-x-[-1]" style="opacity:0.6"></video>
-        </div>
-        <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-          <span class="text-xs px-2 py-0.5 font-mono"
-            style="background:{gestureMode==='draw'?'rgba(0,245,255,0.2)':gestureMode==='erase'?'rgba(255,78,205,0.2)':'rgba(255,255,255,0.1)'};
-                   color:{gestureMode==='draw'?'#00f5ff':gestureMode==='erase'?'#ff4ecd':'rgba(255,255,255,0.4)'}">
-            {gestureMode==='draw'?'☝ DRAW':gestureMode==='erase'?'🤏 ERASE':'✋ HOVER'}
-          </span>
-          {#if !handsReady}
-            <span class="text-xs" style="color:rgba(255,165,0,0.7)">loading…</span>
-          {/if}
-        </div>
-      </div>
-      {/if}
-
-      
-      <div class="px-4 py-3 text-xs font-mono" style="background:#0a0a14;border-top:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.3)">
-        Round {round}/{totalRounds}
-      </div>
-    </aside>
-=======
 	<!-- Gesture hint -->
 	<div class="mx-4 mt-3 mb-1 rounded-lg border border-white/5 bg-white/3 px-3 py-2 text-[0.6rem] leading-relaxed text-white/20 uppercase tracking-widest">
 		<span class="text-white/30">L</span> gesture · hold 2s to toggle<br />
@@ -1205,7 +999,6 @@ $effect(() => {
 		</button>
 	</div>
 </aside>
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
 
     
     <div class="flex flex-col flex-1 gap-px">
@@ -1313,21 +1106,12 @@ $effect(() => {
       {/if}
     </div>
 
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-    
-    <aside class="flex flex-col" style="width:280px;flex-shrink:0;background:#0a0a14">
-      <div class="px-4 py-3 text-xs tracking-widest uppercase"
-           style="color:rgba(255,255,255,0.25);border-bottom:1px solid rgba(255,255,255,0.07)">
-        // chat
-      </div>
-=======
 		<div class="ml-auto flex flex-row items-end gap-2">
 			<button class="cursor-pointer rounded-lg border border-red-500/20 bg-white/5 px-4 py-2 text-xs text-red-400 transition-colors duration-150 hover:border-red-500/70 hover:bg-red-500/15" style="font-family: 'Space Mono', monospace;" onclick={handleClear}>Clear</button>
 			<button class="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-xs text-[#e0e0e8] transition-colors duration-150 hover:border-white/30 hover:bg-white/10" style="font-family: 'Space Mono', monospace;" onclick={() => handCanvas?.exportCanvas()}>Export PNG</button>
 			<button class="cursor-pointer rounded-lg border border-[#ff4ecd]/25 bg-[#ff4ecd]/5 px-4 py-2 text-xs text-[#ff4ecd] transition-colors duration-150 hover:border-[#ff4ecd]/55 hover:bg-[#ff4ecd]/10" style="font-family: 'Space Mono', monospace;" onclick={openShareModal}>Share ✉</button>
 		</div>
 	</div>
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
 
       <div id="chat-scroll" class="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-1">
         {#each chat as msg}
@@ -1348,12 +1132,6 @@ $effect(() => {
         {/each}
       </div>
 
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-      
-      <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.07)">
-        {#if !isDrawer && phase === 'drawing' && players.find(p=>p.id==='p1')?.guessedThisRound}
-          <div class="mb-2 text-xs text-center" style="color:#4eff91">✓ You got it! Keep chatting…</div>
-=======
       <!-- Chat / Guess input — always visible during drawing -->
       {#if phase === 'drawing'}
         {#if !isDrawer && players.find(p=>p.id==='p1')?.guessedThisRound}
@@ -1385,7 +1163,6 @@ $effect(() => {
                 style="background:#00f5ff;color:#070710">→</button>
             </div>
           </div>
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
         {/if}
       {/if}
     </aside>
@@ -1399,87 +1176,6 @@ $effect(() => {
       Final <span style="color:#00f5ff">Scores</span>
     </h1>
 
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-    
-    {#if ranked[0]}
-      <div class="text-center">
-        <div class="text-5xl mb-3">{ranked[0].isAI ? '🤖' : '🏆'}</div>
-        <h1 class="font-syne font-black text-white m-0" style="font-size:clamp(2.5rem,7vw,4.5rem)">
-          <span style="color:#ffd600">{ranked[0].name}</span> wins!
-        </h1>
-        <div class="mt-2 text-sm font-mono" style="color:rgba(255,255,255,0.3)">
-          {ranked[0].score} pts · {ranked[0].isAI ? 'AI Player' : 'Human'}
-        </div>
-      </div>
-    {/if}
-
-    
-    {#if ranked.length >= 2}
-    <div class="flex items-end justify-center gap-3" style="width:100%;max-width:520px">
-      
-      {#if ranked[1]}
-      <div class="flex flex-col items-center gap-2 flex-1">
-        <div class="text-xl">{ranked[1].isAI ? '🤖' : '👤'}</div>
-        <div class="font-syne font-bold text-sm text-center truncate w-full" style="color:rgba(255,255,255,0.6)">{ranked[1].name}</div>
-        <div class="font-syne font-black text-xl" style="color:rgba(255,255,255,0.5)">{ranked[1].score}</div>
-        <div class="w-full flex items-center justify-center font-syne font-black text-2xl"
-             style="height:80px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.4)">2</div>
-      </div>
-      {/if}
-      
-      <div class="flex flex-col items-center gap-2 flex-1">
-        <div class="text-2xl">{ranked[0].isAI ? '🤖' : '👤'}</div>
-        <div class="font-syne font-bold text-sm text-center truncate w-full" style="color:#ffd600">{ranked[0].name}</div>
-        <div class="font-syne font-black text-2xl" style="color:#ffd600">{ranked[0].score}</div>
-        <div class="w-full flex items-center justify-center font-syne font-black text-3xl"
-             style="height:120px;background:rgba(255,214,0,0.08);border:1px solid rgba(255,214,0,0.3);color:#ffd600">1</div>
-      </div>
-      
-      {#if ranked[2]}
-      <div class="flex flex-col items-center gap-2 flex-1">
-        <div class="text-xl">{ranked[2].isAI ? '🤖' : '👤'}</div>
-        <div class="font-syne font-bold text-sm text-center truncate w-full" style="color:rgba(255,149,0,0.8)">{ranked[2].name}</div>
-        <div class="font-syne font-black text-xl" style="color:#ff9500">{ranked[2].score}</div>
-        <div class="w-full flex items-center justify-center font-syne font-black text-2xl"
-             style="height:60px;background:rgba(255,149,0,0.05);border:1px solid rgba(255,149,0,0.2);color:#ff9500">3</div>
-      </div>
-      {/if}
-    </div>
-    {/if}
-
-    
-    <div style="width:100%;max-width:520px;border:1px solid rgba(255,255,255,0.07);background:#0d0d1a">
-      <div class="px-5 py-3 text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.25);border-bottom:1px solid rgba(255,255,255,0.07)">
-        // full standings
-      </div>
-      {#each ranked as p, i}
-        {@const maxScore = ranked[0].score || 1}
-        <div class="relative px-5 py-3 overflow-hidden" style="border-bottom:{i<ranked.length-1?'1px solid rgba(255,255,255,0.05)':'none'}">
-          
-          <div class="absolute inset-0 left-0"
-               style="width:{Math.round((p.score/maxScore)*100)}%;
-                      background:{i===0?'rgba(255,214,0,0.06)':i===1?'rgba(255,255,255,0.03)':i===2?'rgba(255,149,0,0.04)':'rgba(255,255,255,0.02)'}"></div>
-          <div class="relative flex items-center gap-4">
-            <span class="font-syne font-black text-lg w-6 text-center"
-                  style="color:{i===0?'#ffd600':i===1?'rgba(255,255,255,0.45)':i===2?'#ff9500':'rgba(255,255,255,0.2)'}">
-              {i+1}
-            </span>
-            <span class="text-base">{p.isAI ? '🤖' : '👤'}</span>
-            <div class="flex-1 min-w-0">
-              <div class="font-syne font-bold text-sm truncate"
-                   style="color:{i===0?'#ffd600':i===1?'rgba(255,255,255,0.75)':i===2?'#ff9500':'rgba(255,255,255,0.5)'}">
-                {p.name}
-              </div>
-              <div class="text-xs font-mono" style="color:rgba(255,255,255,0.2)">{p.isAI ? 'AI' : 'Human'}</div>
-            </div>
-            <div class="text-right">
-              <div class="font-syne font-black text-xl"
-                   style="color:{i===0?'#ffd600':i===1?'rgba(255,255,255,0.6)':i===2?'#ff9500':'#00f5ff'}">
-                {p.score}
-              </div>
-              <div class="text-xs font-mono" style="color:rgba(255,255,255,0.2)">pts</div>
-            </div>
-=======
     <div style="border:1px solid rgba(255,255,255,0.07);background:#0d0d1a;width:100%;max-width:480px">
       {#each ranked as p, i}
         <div class="flex items-center gap-4 px-6 py-4" style="border-bottom:{i<ranked.length-1?'1px solid rgba(255,255,255,0.07)':'none'}">
@@ -1490,7 +1186,6 @@ $effect(() => {
           <div class="flex-1">
             <div class="font-syne font-bold text-lg" style="color:{i===0?'#ffd600':'rgba(255,255,255,0.8)'}">{p.name}</div>
             <div class="text-xs" style="color:rgba(255,255,255,0.3)">{p.isAI?'AI Player':'Human'}</div>
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
           </div>
           <div class="font-syne font-black text-2xl" style="color:{i===0?'#ffd600':'#00f5ff'}">{p.score}</div>
         </div>
@@ -1533,23 +1228,6 @@ $effect(() => {
 		cursor: pointer;
 	}
 
-<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
-  
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-  .animate-pulse { animation: pulse 1.5s ease-in-out infinite; }
-
-  
-  #chat-scroll { scrollbar-width: thin; scrollbar-color: rgba(0,245,255,0.2) transparent; }
-  #chat-scroll::-webkit-scrollbar { width: 4px; }
-  #chat-scroll::-webkit-scrollbar-track { background: transparent; }
-  #chat-scroll::-webkit-scrollbar-thumb { background: rgba(0,245,255,0.2); border-radius: 2px; }
-
-  
-  canvas { image-rendering: pixelated; }
-=======
 	.page-item {
 		border-color: transparent;
 		background: transparent;
@@ -1562,5 +1240,4 @@ $effect(() => {
 		border-color: rgba(0, 245, 255, 0.2);
 		background: rgba(0, 245, 255, 0.05);
 	}
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
 </style>

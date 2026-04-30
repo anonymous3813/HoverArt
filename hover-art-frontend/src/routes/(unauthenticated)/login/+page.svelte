@@ -1,7 +1,8 @@
 <script lang="ts">import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import { auth, setAuth } from '$lib/auth.svelte.ts';
-const BACKEND_URL = 'http://localhost:3001';
+import { getBackendUrl } from '$lib/backendUrl';
+const BACKEND_URL = getBackendUrl();
 let email = $state('');
 let password = $state('');
 let error = $state('');

@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { getBackendUrl } from '$lib/backendUrl';
 class GameSocketService {
     constructor() {
         this.socket = null;
@@ -9,7 +10,7 @@ class GameSocketService {
     connect() {
         if (this.socket?.connected)
             return this.socket;
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const backendUrl = getBackendUrl();
         this.socket = io(backendUrl, {
             transports: ['websocket', 'polling'],
             reconnection: true,

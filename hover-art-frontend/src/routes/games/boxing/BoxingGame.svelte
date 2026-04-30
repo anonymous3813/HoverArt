@@ -1,172 +1,3 @@
-<<<<<<< HEAD:hover-art-frontend/src/lib/components/BoxingGame.svelte
-<script lang="ts">import { onMount, tick } from 'svelte';
-import { GameEngine } from '$lib/boxing/GameEngine.ts';
-import { PoseDetector, drawPoseSkeleton } from '$lib/boxing/PoseDetector.ts';
-interface Props {
-    playerModelPath?: string;
-    cpuModelPath?: string;
-    animationPaths?: Record<string, string>;
-}
-let { playerModelPath = '/models/X Bot.fbx', cpuModelPath = '/models/X Bot.fbx', animationPaths = {
-    idle: '/models/anims/X Bot@Fighting Idle.fbx',
-    punchLeft: '/models/anims/X Bot@PunchingLeft.fbx',
-    punchRight: '/models/anims/X Bot@PunchingRight.fbx',
-    block: '/models/anims/X Bot@Body Block.fbx',
-    hitReact: '/models/anims/X Bot@Hit To Body.fbx',
-    victory: '/models/anims/X Bot@House Dancing.fbx',
-    defeated: '/models/anims/X Bot@Knocked Out.fbx'
-} }: Props = $props();
-type GameState = 'MENU' | 'CAM_INIT' | 'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'DRAW';
-let loadingProgress = $state(0);
-let loadingMessage = $state('Initialising…');
-let isLoaded = $state(false);
-let gameState = $state<GameState>('MENU');
-let playerHP = $state(100);
-let cpuHP = $state(100);
-let roundTime = $state(180);
-let roundDisplay = $state('3:00');
-let round = $state(1);
-let combo = $state(0);
-let lastActionText = $state('');
-let camError = $state('');
-let poseStatus = $state('');
-let lastGesture = $state('');
-let gameCanvas: HTMLCanvasElement;
-let videoEl: HTMLVideoElement;
-let overlayCanvas: HTMLCanvasElement;
-let engine: GameEngine | null = null;
-let detector: PoseDetector | null = null;
-let actionTimeout: ReturnType<typeof setTimeout>;
-let gestureTimeout: ReturnType<typeof setTimeout>;
-let latestLandmarks: any[] | null = null;
-onMount(async () => {
-    engine = new GameEngine(gameCanvas, {
-        playerModelPath,
-        cpuModelPath,
-        animationPaths,
-        onProgress(pct: number, msg: string) {
-            loadingProgress = pct;
-            loadingMessage = msg;
-        },
-        onReady() {
-            isLoaded = true;
-        },
-        onPlayerHP(hp: number) {
-            playerHP = hp;
-            if (hp <= 0) {
-                gameState = 'DEFEAT';
-                engine?.triggerDefeat();
-                teardownPose();
-            }
-        },
-        onCpuHP(hp: number) {
-            cpuHP = hp;
-            if (hp <= 0) {
-                gameState = 'VICTORY';
-                engine?.triggerVictory();
-                teardownPose();
-            }
-        },
-        onTimer(seconds: number) {
-            roundTime = seconds;
-            const m = Math.floor(seconds / 60);
-            const s = String(seconds % 60).padStart(2, '0');
-            roundDisplay = `${m}:${s}`;
-            if (seconds <= 0) {
-                gameState = playerHP > cpuHP ? 'VICTORY' : playerHP < cpuHP ? 'DEFEAT' : 'DRAW';
-                if (gameState === 'VICTORY')
-                    engine?.triggerVictory();
-                else if (gameState === 'DEFEAT')
-                    engine?.triggerDefeat();
-                teardownPose();
-            }
-        },
-        onCombo(count: number) {
-            combo = count;
-        },
-        onAction(text: string) {
-            lastActionText = text;
-            clearTimeout(actionTimeout);
-            actionTimeout = setTimeout(() => {
-                lastActionText = '';
-            }, 1200);
-        }
-    });
-    await engine.init();
-    function drawLoop() {
-        requestAnimationFrame(drawLoop);
-        if (!overlayCanvas || !latestLandmarks)
-            return;
-        const ctx = overlayCanvas.getContext('2d')!;
-        drawPoseSkeleton(ctx, latestLandmarks, overlayCanvas.width, overlayCanvas.height);
-    }
-    requestAnimationFrame(drawLoop);
-    return () => {
-        teardownPose();
-        engine?.dispose();
-        clearTimeout(actionTimeout);
-        clearTimeout(gestureTimeout);
-    };
-});
-async function setupPose() {
-    gameState = 'CAM_INIT';
-    camError = '';
-    poseStatus = 'Loading pose model…';
-    await tick();
-    if (!videoEl) {
-        camError = 'Video element not ready yet';
-        gameState = 'MENU';
-        return;
-    }
-    try {
-        detector = new PoseDetector(videoEl, {
-            onGesture(gesture: string) {
-                engine?.playerGesture(gesture);
-                const labels: Record<string, string> = {
-                    punchLeft: '👊 Left Hook',
-                    punchRight: '👊 Right Hook',
-                    blockStart: '🛡 Blocking',
-                    blockEnd: ''
-                };
-                if (labels[gesture]) {
-                    lastGesture = labels[gesture];
-                    clearTimeout(gestureTimeout);
-                    gestureTimeout = setTimeout(() => {
-                        lastGesture = '';
-                    }, 800);
-                }
-            },
-            onLandmarks(lm: any[]) {
-                latestLandmarks = lm;
-                poseStatus = 'Detecting…';
-            }
-        });
-        await detector.init();
-        poseStatus = 'Starting camera…';
-        await detector.start();
-        gameState = 'FIGHTING';
-        engine?.startFight();
-    }
-    catch (err: any) {
-        camError = err?.message ?? 'Camera access denied';
-        gameState = 'MENU';
-    }
-}
-function teardownPose() {
-    detector?.dispose();
-    detector = null;
-    latestLandmarks = null;
-}
-function restartGame() {
-    playerHP = 100;
-    cpuHP = 100;
-    roundTime = 180;
-    roundDisplay = '3:00';
-    combo = 0;
-    engine?.restartFight();
-    setupPose();
-}
-=======
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { GameEngine } from './GameEngine';
@@ -369,20 +200,14 @@ function restartGame() {
 		engine?.restartFight();
 		setupPose();
 	}
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/boxing/BoxingGame.svelte
 </script>
 
 
 <div
 	class="relative h-full min-h-[600px] w-full overflow-hidden bg-[#0a0a0a] font-boxing select-none"
 >
-<<<<<<< HEAD:hover-art-frontend/src/lib/components/BoxingGame.svelte
-	
-	<canvas bind:this={gameCanvas} class="block h-full w-full" />
-=======
 	<!-- THREE.js canvas -->
 	<canvas bind:this={gameCanvas} class="block h-full w-full"></canvas>
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/boxing/BoxingGame.svelte
 
 	
 	{#if !isLoaded}
@@ -527,11 +352,7 @@ function restartGame() {
 			</div>
 		</div>
 
-<<<<<<< HEAD:hover-art-frontend/src/lib/components/BoxingGame.svelte
-		
-=======
 		<!-- Webcam + skeleton overlay -->
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/boxing/BoxingGame.svelte
 		<div
 			class="absolute bottom-4 left-4 z-10 aspect-[4/3] w-36 overflow-hidden rounded-lg
                 border border-white/10 shadow-[0_4px_24px_rgba(0,0,0,0.7)]"
@@ -543,25 +364,15 @@ function restartGame() {
 				autoplay
 				muted
 				playsinline
-<<<<<<< HEAD:hover-art-frontend/src/lib/components/BoxingGame.svelte
-			/>
-			
-=======
 			></video>
 			<!-- Skeleton overlay canvas -->
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/boxing/BoxingGame.svelte
 			<canvas
 				bind:this={overlayCanvas}
 				width="144"
 				height="108"
 				class="absolute inset-0 h-full w-full"
-<<<<<<< HEAD:hover-art-frontend/src/lib/components/BoxingGame.svelte
-			/>
-			
-=======
 			></canvas>
 			<!-- Status badge -->
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/boxing/BoxingGame.svelte
 			<div
 				class="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 text-center
                   text-[0.55rem] tracking-wider text-amber-400 uppercase"
@@ -570,11 +381,7 @@ function restartGame() {
 			</div>
 		</div>
 
-<<<<<<< HEAD:hover-art-frontend/src/lib/components/BoxingGame.svelte
-		
-=======
 		<!-- Gesture feedback badge -->
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/boxing/BoxingGame.svelte
 		{#if lastGesture}
 			{#key lastGesture}
 				<div
@@ -590,11 +397,7 @@ function restartGame() {
 			{/key}
 		{/if}
 
-<<<<<<< HEAD:hover-art-frontend/src/lib/components/BoxingGame.svelte
-		
-=======
 		<!-- Combo flash -->
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/boxing/BoxingGame.svelte
 		{#if combo >= 2}
 			{#key combo}
 				<div

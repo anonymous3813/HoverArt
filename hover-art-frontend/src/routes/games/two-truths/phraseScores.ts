@@ -1,11 +1,6 @@
-<<<<<<< HEAD:hover-art-frontend/src/lib/twoTruths/phraseScores.ts
-import { summarizeFace, type FaceSample } from '../imposter/faceSignals.js';
-import { analyzeVoiceProsody, type VoiceSnapshot } from '../imposter/voiceSignals.js';
-=======
-import { summarizeFace, type FaceSample } from './faceSignals';
-import { analyzeVoiceProsody, type VoiceSnapshot } from './voiceSignals';
+import { summarizeFace, type FaceSample } from './faceSignals.js';
+import { analyzeVoiceProsody, type VoiceSnapshot } from './voiceSignals.js';
 
->>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/two-truths/phraseScores.ts
 export function phase1FaceLieSignal(samples: FaceSample[]): {
     score: number;
     detail: Record<string, number>;
