@@ -1,7 +1,7 @@
 <script lang="ts">import { onDestroy, createEventDispatcher } from 'svelte';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
-import { mouthOpenFromBlendshapes } from '../flappy/mouthOpenFromFace.js';
-import { createInitialState, startGame, jump, updateGame, BIRD_X, BIRD_R, PIPE_W, PIPE_GAP, scaleFor, type FlappyState } from '../flappy/gameEngine.js';
+import { mouthOpenFromBlendshapes } from './mouthOpenFromFace.js';
+import { createInitialState, startGame, jump, updateGame, BIRD_X, BIRD_R, PIPE_W, PIPE_GAP, scaleFor, type FlappyState } from './gameEngine.js';
 import { gameSocket } from '$lib/services/gameSocket';
 const dispatch = createEventDispatcher<{
     gameOver: void;

@@ -1,3 +1,4 @@
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
 <svelte:head>
   <title>HoverArt — Skribbl Mode</title>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
@@ -5,6 +6,13 @@
 
 <script lang="ts">import { onMount, onDestroy, tick } from 'svelte';
 interface Player {
+=======
+<script lang="ts">
+  import { onMount, onDestroy, tick } from 'svelte';
+
+  // ─── Types ────────────────────────────────────────────────────────────
+  interface Player {
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     id: string;
     name: string;
     score: number;
@@ -36,6 +44,7 @@ const COLORS = [
 let phase = $state<Phase>('lobby');
 let players = $state<Player[]>([
     { id: 'p1', name: 'Player 1', score: 0, isAI: false, guessedThisRound: false }
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
 ]);
 let newName = $state('');
 let drawerIdx = $state(0);
@@ -76,6 +85,58 @@ const ranked = $derived([...players].sort((a, b) => b.score - a.score));
 const wordMask = $derived(secretWord.split('').map((c) => (c === ' ' ? '  ' : '_')).join(' '));
 const allGuessed = $derived(players.filter(p => p.id !== drawer?.id).every(p => p.guessedThisRound));
 function loadScript(src: string): Promise<void> {
+=======
+  ]);
+  let newName     = $state('');
+  let drawerIdx   = $state(0);
+  let round       = $state(1);
+  let totalRounds = $state(3);
+  let secretWord  = $state('');
+  let wordChoices = $state<string[]>([]);
+  let timerSec    = $state(80);
+  let countdown   = $state(3);
+  let chat        = $state<ChatMsg[]>([]);
+  let guessInput  = $state('');
+  let roundWordReveal = $state('');
+
+  // ─── Drawing State ────────────────────────────────────────────────────
+  let canvas = $state<HTMLCanvasElement>(null!);
+  let videoEl = $state<HTMLVideoElement>(null!);   // always-mounted hidden video fed to MediaPipe
+  let previewEl = $state<HTMLVideoElement>(null!); // visible webcam preview (drawer panel)
+  let cursorEl: HTMLDivElement;
+  let ctx = $state<CanvasRenderingContext2D | null>(null);
+  let brushColor  = $state('#00f5ff');
+  let brushSize   = $state(6);
+  let gestureMode = $state<GestureMode>('hover');
+  let prevX: number | null = null;
+  let prevY: number | null = null;
+  let cursorPos   = $state<{x: number; y: number} | null>(null);
+  let handsReady  = $state(false);
+  let camActive   = $state(false);
+
+  // ─── AI State ─────────────────────────────────────────────────────────
+  let aiThinking  = $state(false);
+
+  // ─── Intervals ───────────────────────────────────────────────────────
+  let timerIv: ReturnType<typeof setInterval> | null = null;
+  let cdIv: ReturnType<typeof setInterval> | null = null;
+  let aiIv: ReturnType<typeof setInterval> | null = null;
+  let handsInst: any = null;
+
+  // ─── Derived ─────────────────────────────────────────────────────────
+  const drawer = $derived(players[drawerIdx]);
+  const isDrawer = $derived(drawer?.id === 'p1');
+  const ranked = $derived([...players].sort((a, b) => b.score - a.score));
+  const wordMask = $derived(
+    secretWord.split('').map((c) => (c === ' ' ? '  ' : '_')).join(' ')
+  );
+  const allGuessed = $derived(
+    players.filter(p => p.id !== drawer?.id).every(p => p.guessedThisRound)
+  );
+
+  // ─── Script loader ────────────────────────────────────────────────────
+  function loadScript(src: string): Promise<void> {
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     return new Promise((res, rej) => {
         if (document.querySelector(`script[src="${src}"]`)) {
             res();
@@ -195,8 +256,215 @@ function onHandResults(results: any) {
         ctx.globalCompositeOperation = 'source-over';
         prevX = prevY = null;
     }
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
     else if (mode === 'draw') {
         ctx.globalCompositeOperation = 'source-over';
+=======
+  }
+
+  // ─── Canvas ───────────────────────────────────────────────────────────
+  function initCanvas() {
+    if (!canvas) return;
+    ctx = canvas.getContext('2d')!;
+    clearCanvas();
+  }
+
+  function clearCanvas() {
+    if (!ctx || !canvas) return;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // ─── Game Flow ────────────────────────────────────────────────────────
+  function startGame() {
+    round = 1; drawerIdx = 0;
+    players = players.map(p => ({ ...p, score: 0, guessedThisRound: false }));
+    chat = [];
+    startRound();
+  }
+
+  function startRound() {
+    phase = 'countdown'; countdown = 3;
+    clearCanvas(); chat = [];
+    players = players.map(p => ({ ...p, guessedThisRound: false }));
+    cdIv = setInterval(() => {
+      countdown--;
+      if (countdown <= 0) { clearInterval(cdIv!); beginWordPick(); }
+    }, 1000);
+  }
+
+  function beginWordPick() {
+    const shuffled = [...WORD_BANK].sort(() => Math.random() - 0.5);
+    wordChoices = shuffled.slice(0, 3);
+    phase = 'wordpick';
+
+    if (drawer?.isAI) {
+      secretWord = wordChoices[Math.floor(Math.random() * 3)];
+      setTimeout(startDrawing, 600);
+    } else {
+      // Auto-pick after 10s
+      timerIv = setTimeout(() => {
+        if (phase === 'wordpick') {
+          secretWord = wordChoices[Math.floor(Math.random() * 3)];
+          startDrawing();
+        }
+      }, 10000) as any;
+    }
+  }
+
+  function pickWord(w: string) {
+    if (phase !== 'wordpick') return;
+    if (timerIv) clearTimeout(timerIv as any);
+    secretWord = w;
+    startDrawing();
+  }
+
+  function startDrawing() {
+    phase = 'drawing'; timerSec = 80;
+    // Camera is started by the $effect that watches phase + isDrawer
+
+    pushSystem(`✏ Round ${round} started — ${drawer?.name} is drawing!`);
+
+    timerIv = setInterval(() => {
+      timerSec--;
+      if (timerSec <= 0) { clearInterval(timerIv!); endRound(); }
+    }, 1000);
+
+    // If the drawer is an AI, have Claude draw the word
+    const currentDrawer = players[drawerIdx];
+    if (currentDrawer?.isAI) {
+      setTimeout(() => aiDraw(secretWord), 1200);
+    }
+
+    // AI players who are NOT drawing should guess
+    const aiGuessers = players.filter(p => p.isAI && p.id !== currentDrawer?.id);
+    if (aiGuessers.length > 0) scheduleAIGuess(aiGuessers);
+  }
+
+  // Each AI has a personality that shapes how they react in chat
+  const AI_PERSONAS: Record<string, { style: string; reactions: string[] }> = {
+    '🤖 Claude': {
+      style: 'thoughtful and methodical',
+      reactions: ['interesting shape...', 'could be...', 'wait I think I see it', 'hmm the lines suggest...']
+    },
+    '🤖 Gemini': {
+      style: 'confident and quick',
+      reactions: ['ooh ooh!', 'I got this', 'easy one', 'wait no...']
+    },
+    '🤖 Copilot': {
+      style: 'nerdy and over-analytical',
+      reactions: ['processing...', 'running analysis...', 'cross-referencing shapes...', 'statistically speaking...']
+    },
+  };
+
+  function getPersona(name: string) {
+    return AI_PERSONAS[name] ?? { style: 'curious', reactions: ['hmm...', 'let me think...'] };
+  }
+
+  // Track previous wrong guesses per AI so they don't repeat themselves
+  const aiPriorGuesses: Record<string, string[]> = {};
+
+  function scheduleAIGuess(ais: Player[]) {
+    // Stagger each AI independently with some randomness
+    ais.forEach(ai => {
+      aiPriorGuesses[ai.id] = [];
+      const baseDelays = [6000, 18000, 36000];
+      baseDelays.forEach(base => {
+        const jitter = Math.random() * 4000;
+        setTimeout(async () => {
+          if (phase !== 'drawing' || ai.guessedThisRound) return;
+          await aiGuess(ai);
+        }, base + jitter);
+      });
+    });
+  }
+
+  async function aiGuess(ai: Player) {
+    if (phase !== 'drawing' || ai.guessedThisRound) return;
+    const persona = getPersona(ai.name);
+    const prior = aiPriorGuesses[ai.id] ?? [];
+
+    // Occasionally react before guessing
+    if (Math.random() < 0.4 && prior.length > 0) {
+      const reaction = persona.reactions[Math.floor(Math.random() * persona.reactions.length)];
+      chat = [...chat, { playerId: ai.id, playerName: ai.name, text: reaction, correct: false, ts: Date.now() }];
+      scrollChat();
+      await new Promise(r => setTimeout(r, 1200));
+      if (phase !== 'drawing') return;
+    }
+
+    aiThinking = true;
+    try {
+      const imgData = canvas.toDataURL('image/png').split(',')[1];
+      const priorText = prior.length > 0
+        ? `You already guessed wrong: ${prior.join(', ')}. Do NOT guess those again.`
+        : '';
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 80,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/png', data: imgData } },
+              { type: 'text', text: `This is a Skribbl.io drawing game. Someone drew a word using hand gestures and you need to guess it.
+You are ${ai.name}, playing as a ${persona.style} guesser.
+${priorText}
+Study the shapes, lines and overall composition carefully. The drawing could be anything — an animal, object, place, action, food, or concept.
+Respond with ONLY one lowercase word. No punctuation, no explanation, just the word.` }
+            ]
+          }]
+        })
+      });
+      const data = await resp.json();
+      const raw = data.content?.[0]?.text?.trim().toLowerCase().replace(/[^a-z]/g, '') ?? '';
+      if (raw) {
+        aiPriorGuesses[ai.id] = [...prior, raw];
+        submitChatMsg(ai.id, ai.name, raw, true);
+      }
+    } catch(e) {
+      console.error('AI guess failed:', e);
+      // Silent fail — don't pollute chat with error messages
+    } finally {
+      aiThinking = false;
+    }
+  }
+
+  // ─── AI Drawing ──────────────────────────────────────────────────────
+  async function aiDraw(word: string) {
+    if (!ctx || !canvas) return;
+    aiThinking = true;
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1200,
+          messages: [{
+            role: 'user',
+            content: `You are drawing the word "${word}" on a ${canvas.width}x${canvas.height} canvas for a Skribbl-style game.
+Respond with ONLY a JSON array of strokes. Each stroke is an array of {x,y} points.
+Keep it simple — 3 to 8 strokes, each with 4 to 16 points. Spread drawings across the full canvas.
+Example for "house": [ [{x:300,y:400},{x:450,y:250},{x:600,y:400}], [{x:300,y:400},{x:600,y:400},{x:600,y:600},{x:300,y:600},{x:300,y:400}] ]
+Respond with ONLY the JSON array, no explanation.`
+          }]
+        })
+      });
+      const data = await resp.json();
+      const raw = data.content?.[0]?.text?.trim() ?? '[]';
+      const clean = raw.replace(/\`\`\`json|\`\`\`/g, '').trim();
+      const strokes: {x:number;y:number}[][] = JSON.parse(clean);
+
+      // Draw each stroke with a delay so it looks animated
+      for (const stroke of strokes) {
+        if (phase !== 'drawing') break;
+        if (stroke.length < 2) continue;
+        ctx.beginPath();
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
         ctx.strokeStyle = brushColor;
         ctx.lineWidth = brushSize;
         ctx.lineCap = 'round';
@@ -471,6 +739,7 @@ function submitChatMsg(pid: string, pname: string, text: string, isAI = false) {
     const correct = text.toLowerCase().trim() === secretWord.toLowerCase();
     chat = [...chat, { playerId: pid, playerName: pname, text, correct, ts: Date.now() }];
     if (correct) {
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
         const p = players.find(pl => pl.id === pid);
         if (p && !p.guessedThisRound) {
             const pts = Math.max(10, Math.floor(timerSec * 1.5));
@@ -492,6 +761,19 @@ function submitChatMsg(pid: string, pname: string, text: string, isAI = false) {
                 endRound();
             }
         }
+=======
+      const p = players.find(pl => pl.id === pid);
+      if (p && !p.guessedThisRound) {
+        const pts = Math.max(10, Math.floor(timerSec * 1.5));
+        players = players.map(pl => {
+          if (pl.id === pid) return { ...pl, score: pl.score + pts, guessedThisRound: true };
+          if (pl.id === drawer?.id) return { ...pl, score: pl.score + 40 };
+          return pl;
+        });
+        pushSystem(`🎉 ${pname} guessed it! +${pts} pts`);
+        if (allGuessed) { clearInterval(timerIv!); endRound(); }
+      }
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     }
     scrollChat();
 }
@@ -501,12 +783,24 @@ function handleGuessKey(e: KeyboardEvent) {
 }
 function submitPlayerGuess() {
     const text = guessInput.trim();
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
     if (!text)
         return;
     const me = players.find(p => p.id === 'p1')!;
     guessInput = '';
     if (phase === 'drawing' && !isDrawer && !me.guessedThisRound) {
         submitChatMsg('p1', me.name, text);
+=======
+    if (!text || phase !== 'drawing') return;
+    const me = players.find(p => p.id === 'p1')!;
+    guessInput = '';
+    if (isDrawer) {
+      // Drawer just chats — never scored
+      chat = [...chat, { playerId: 'p1', playerName: me.name, text, correct: false, ts: Date.now() }];
+      scrollChat();
+    } else {
+      submitChatMsg('p1', me.name, text);
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     }
     else {
         chat = [...chat, { playerId: 'p1', playerName: me.name, text, correct: false, ts: Date.now() }];
@@ -526,6 +820,7 @@ async function scrollChat() {
 function endRound() {
     phase = 'roundend';
     roundWordReveal = secretWord;
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
     if (timerIv)
         clearInterval(timerIv);
     const currentDrawer = players[drawerIdx];
@@ -537,6 +832,11 @@ function endRound() {
     else {
         pushSystem(`⏱ Time's up! The word was "${secretWord}"`);
     }
+=======
+    if (timerIv) clearInterval(timerIv);
+    pushSystem(`⏱ Time's up! The word was "${secretWord}"`);
+
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
     setTimeout(() => {
         drawerIdx = (drawerIdx + 1) % players.length;
         if (drawerIdx === 0) {
@@ -601,12 +901,21 @@ $effect(() => {
 });
 </script>
 
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
 
 <div class="fixed inset-0 pointer-events-none z-0" style="
   background-image: linear-gradient(rgba(0,245,255,0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,245,255,0.025) 1px, transparent 1px);
   background-size: 60px 60px;
 "></div>
+=======
+<svelte:head>
+	<title>HoverArt — Gesture Canvas</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+</svelte:head>
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
 
 
 <nav class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4"
@@ -693,7 +1002,7 @@ $effect(() => {
       <div class="px-5 py-3 text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.25);border-bottom:1px solid rgba(255,255,255,0.07)">
         // settings
       </div>
-      <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid rgba(255,255,255,0.05)">
+      <div class="flex items-center justify-between px-5 py-4">
         <span class="text-xs" style="color:rgba(255,255,255,0.5)">Total Rounds</span>
         <div class="flex items-center gap-3">
           {#each [2,3,4,5] as r}
@@ -703,20 +1012,6 @@ $effect(() => {
                      color:{totalRounds===r?'#00f5ff':'rgba(255,255,255,0.4)'};
                      background:{totalRounds===r?'rgba(0,245,255,0.08)':'transparent'}">
               {r}
-            </button>
-          {/each}
-        </div>
-      </div>
-      <div class="flex items-center justify-between px-5 py-4">
-        <span class="text-xs" style="color:rgba(255,255,255,0.5)">Round Duration</span>
-        <div class="flex items-center gap-3">
-          {#each [30, 60, 90] as d}
-            <button onclick={() => roundDuration = d}
-              class="px-3 h-8 text-xs font-mono transition-all"
-              style="border:1px solid {roundDuration===d?'#a78bfa':'rgba(255,255,255,0.15)'};
-                     color:{roundDuration===d?'#a78bfa':'rgba(255,255,255,0.4)'};
-                     background:{roundDuration===d?'rgba(167,139,250,0.08)':'transparent'}">
-              {d}s
             </button>
           {/each}
         </div>
@@ -734,6 +1029,7 @@ $effect(() => {
     </div>
   </div>
 
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
   
   {:else if phase === 'countdown'}
   <div class="flex flex-col items-center justify-center min-h-screen gap-6">
@@ -827,6 +1123,89 @@ $effect(() => {
         Round {round}/{totalRounds}
       </div>
     </aside>
+=======
+	<!-- Gesture hint -->
+	<div class="mx-4 mt-3 mb-1 rounded-lg border border-white/5 bg-white/3 px-3 py-2 text-[0.6rem] leading-relaxed text-white/20 uppercase tracking-widest">
+		<span class="text-white/30">L</span> gesture · hold 2s to toggle<br />
+		<span class="text-white/30">↑↓</span> point to navigate pages
+	</div>
+
+	<!-- Page list -->
+	<nav class="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-3">
+		{#each pages as page, i (page.id)}
+			<div
+				class="page-item group relative flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-all duration-150"
+				class:active={page.id === currentPageId}
+				onclick={() => { switchToPage(page.id); sidebarOpen = false; }}
+				role="button"
+				tabindex="0"
+				onkeydown={(e) => e.key === 'Enter' && switchToPage(page.id)}
+			>
+				<!-- Thumbnail -->
+				<div class="relative h-11 w-16 flex-shrink-0 overflow-hidden rounded-md border border-white/10 bg-[#1a1a26]">
+					{#if page.snapshot}
+						<img src={page.snapshot} alt="Page thumbnail" class="h-full w-full object-cover" />
+					{:else}
+						<div class="flex h-full w-full items-center justify-center text-[0.5rem] text-white/15">empty</div>
+					{/if}
+					<!-- active indicator line -->
+					{#if page.id === currentPageId}
+						<div class="absolute inset-y-0 left-0 w-0.5 rounded-r bg-[#00f5ff]"></div>
+					{/if}
+				</div>
+
+				<!-- Page name -->
+				<div class="min-w-0 flex-1">
+					{#if editingPageId === page.id}
+						<input
+							type="text"
+							bind:value={editingName}
+							class="w-full rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-xs text-white outline-none focus:border-[#00f5ff]/50"
+							style="font-family: 'Space Mono', monospace;"
+							onblur={commitEdit}
+							onkeydown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') editingPageId = null; }}
+							autofocus
+							onclick|stopPropagation={() => {}}
+						/>
+					{:else}
+						<p class="truncate text-xs" class:text-white={page.id === currentPageId} class:text-white/50={page.id !== currentPageId}>
+							{page.name}
+						</p>
+						<p class="text-[0.55rem] text-white/20">Page {i + 1}</p>
+					{/if}
+				</div>
+
+				<!-- Actions (show on hover) -->
+				<div class="flex flex-shrink-0 flex-col gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+					<button
+						class="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-[0.6rem] text-white/30 hover:text-[#00f5ff] transition-colors"
+						onclick|stopPropagation={() => startEditing(page)}
+						title="Rename"
+					>✎</button>
+					{#if pages.length > 1}
+						<button
+							class="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-[0.6rem] text-white/30 hover:text-red-400 transition-colors"
+							onclick|stopPropagation={() => deletePage(page.id)}
+							title="Delete"
+						>✕</button>
+					{/if}
+				</div>
+			</div>
+		{/each}
+	</nav>
+
+	<!-- Add page button -->
+	<div class="border-t border-white/10 p-3">
+		<button
+			class="w-full cursor-pointer rounded-xl border border-dashed border-white/15 bg-white/3 py-2.5 text-xs text-white/30 transition-all hover:border-[#00f5ff]/30 hover:text-[#00f5ff]"
+			style="font-family: 'Space Mono', monospace;"
+			onclick={addPage}
+		>
+			+ New page
+		</button>
+	</div>
+</aside>
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
 
     
     <div class="flex flex-col flex-1 gap-px">
@@ -851,7 +1230,7 @@ $effect(() => {
       {#if phase === 'drawing'}
       <div class="h-0.5" style="background:rgba(255,255,255,0.07)">
         <div class="h-full transition-all duration-1000"
-          style="width:{(timerSec/roundDuration)*100}%;background:{timerSec<=10?'#ff4ecd':timerSec<=20?'#ffd600':'#00f5ff'};
+          style="width:{(timerSec/80)*100}%;background:{timerSec<=10?'#ff4ecd':timerSec<=20?'#ffd600':'#00f5ff'};
                  box-shadow:0 0 8px {timerSec<=10?'#ff4ecd':timerSec<=20?'#ffd600':'#00f5ff'}"></div>
       </div>
       {/if}
@@ -934,12 +1313,21 @@ $effect(() => {
       {/if}
     </div>
 
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
     
     <aside class="flex flex-col" style="width:280px;flex-shrink:0;background:#0a0a14">
       <div class="px-4 py-3 text-xs tracking-widest uppercase"
            style="color:rgba(255,255,255,0.25);border-bottom:1px solid rgba(255,255,255,0.07)">
         // chat
       </div>
+=======
+		<div class="ml-auto flex flex-row items-end gap-2">
+			<button class="cursor-pointer rounded-lg border border-red-500/20 bg-white/5 px-4 py-2 text-xs text-red-400 transition-colors duration-150 hover:border-red-500/70 hover:bg-red-500/15" style="font-family: 'Space Mono', monospace;" onclick={handleClear}>Clear</button>
+			<button class="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-xs text-[#e0e0e8] transition-colors duration-150 hover:border-white/30 hover:bg-white/10" style="font-family: 'Space Mono', monospace;" onclick={() => handCanvas?.exportCanvas()}>Export PNG</button>
+			<button class="cursor-pointer rounded-lg border border-[#ff4ecd]/25 bg-[#ff4ecd]/5 px-4 py-2 text-xs text-[#ff4ecd] transition-colors duration-150 hover:border-[#ff4ecd]/55 hover:bg-[#ff4ecd]/10" style="font-family: 'Space Mono', monospace;" onclick={openShareModal}>Share ✉</button>
+		</div>
+	</div>
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
 
       <div id="chat-scroll" class="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-1">
         {#each chat as msg}
@@ -960,30 +1348,58 @@ $effect(() => {
         {/each}
       </div>
 
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
       
       <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.07)">
         {#if !isDrawer && phase === 'drawing' && players.find(p=>p.id==='p1')?.guessedThisRound}
           <div class="mb-2 text-xs text-center" style="color:#4eff91">✓ You got it! Keep chatting…</div>
+=======
+      <!-- Chat / Guess input — always visible during drawing -->
+      {#if phase === 'drawing'}
+        {#if !isDrawer && players.find(p=>p.id==='p1')?.guessedThisRound}
+          <div class="px-4 py-3 text-xs text-center" style="color:#4eff91;border-top:1px solid rgba(255,255,255,0.07)">
+            ✓ You got it! Wait for others…
+          </div>
+          <!-- still let them chat even after guessing -->
+          <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.07)">
+            <div class="flex gap-2">
+              <input bind:value={guessInput} onkeydown={handleGuessKey}
+                placeholder="Chat…" autocomplete="off"
+                class="flex-1 px-3 py-2 text-xs font-mono outline-none"
+                style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e0e0f0"/>
+              <button onclick={submitPlayerGuess}
+                class="px-3 py-2 text-xs font-mono transition-all"
+                style="background:#00f5ff;color:#070710">→</button>
+            </div>
+          </div>
+        {:else}
+          <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.07)">
+            <div class="flex gap-2">
+              <input bind:value={guessInput} onkeydown={handleGuessKey}
+                placeholder={isDrawer ? "Chat with players…" : "Type your guess…"}
+                autocomplete="off"
+                class="flex-1 px-3 py-2 text-xs font-mono outline-none"
+                style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e0e0f0"/>
+              <button onclick={submitPlayerGuess}
+                class="px-3 py-2 text-xs font-mono transition-all"
+                style="background:#00f5ff;color:#070710">→</button>
+            </div>
+          </div>
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
         {/if}
-        <div class="flex gap-2">
-          <input bind:value={guessInput} onkeydown={handleGuessKey}
-            placeholder={phase === 'drawing' && !isDrawer && !players.find(p=>p.id==='p1')?.guessedThisRound ? "Type your guess…" : "Chat…"}
-            autocomplete="off"
-            class="flex-1 px-3 py-2 text-xs font-mono outline-none"
-            style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e0e0f0;border-radius:2px"/>
-          <button onclick={submitPlayerGuess}
-            class="px-3 py-2 text-xs font-mono transition-all"
-            style="background:#00f5ff;color:#070710">→</button>
-        </div>
-      </div>
+      {/if}
     </aside>
   </div>
 
   
   {:else if phase === 'gameover'}
-  <div class="flex flex-col items-center min-h-screen gap-10 px-6 py-16">
-    <div class="text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.25)">// game_over</div>
+  <div class="flex flex-col items-center justify-center min-h-screen gap-8 px-6 py-20">
+    <div class="text-xs tracking-widest uppercase" style="color:rgba(255,255,255,0.3)">// game_over</div>
+    <h1 class="font-syne font-black text-white tracking-tight" style="font-size:clamp(3rem,8vw,5rem)">
+      Final <span style="color:#00f5ff">Scores</span>
+    </h1>
 
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
     
     {#if ranked[0]}
       <div class="text-center">
@@ -1063,20 +1479,42 @@ $effect(() => {
               </div>
               <div class="text-xs font-mono" style="color:rgba(255,255,255,0.2)">pts</div>
             </div>
+=======
+    <div style="border:1px solid rgba(255,255,255,0.07);background:#0d0d1a;width:100%;max-width:480px">
+      {#each ranked as p, i}
+        <div class="flex items-center gap-4 px-6 py-4" style="border-bottom:{i<ranked.length-1?'1px solid rgba(255,255,255,0.07)':'none'}">
+          <span class="font-syne font-black text-3xl w-8"
+                style="color:{i===0?'#ffd600':i===1?'rgba(255,255,255,0.5)':i===2?'#ff9500':'rgba(255,255,255,0.2)'}">
+            {i===0?'1':i===1?'2':i===2?'3':i+1}
+          </span>
+          <div class="flex-1">
+            <div class="font-syne font-bold text-lg" style="color:{i===0?'#ffd600':'rgba(255,255,255,0.8)'}">{p.name}</div>
+            <div class="text-xs" style="color:rgba(255,255,255,0.3)">{p.isAI?'AI Player':'Human'}</div>
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
           </div>
+          <div class="font-syne font-black text-2xl" style="color:{i===0?'#ffd600':'#00f5ff'}">{p.score}</div>
         </div>
       {/each}
     </div>
 
+    {#if ranked[0]}
+      <div class="text-center">
+        <div class="text-4xl mb-2">{ranked[0].isAI ? '🤖' : '🏆'}</div>
+        <div class="font-syne font-black text-xl text-white">
+          <span style="color:#ffd600">{ranked[0].name}</span> wins!
+        </div>
+      </div>
+    {/if}
+
     <div class="flex gap-4 flex-wrap justify-center">
       <button onclick={() => { players = players.map(p=>({...p,score:0,guessedThisRound:false})); startGame(); }}
         class="px-8 py-4 font-syne font-black text-base uppercase tracking-wider transition-all"
-        style="background:#00f5ff;color:#070710;box-shadow:0 0 30px rgba(0,245,255,0.2)">
+        style="background:#00f5ff;color:#070710;box-shadow:0 0 30px rgba(0,245,255,0.25)">
         Play Again →
       </button>
       <button onclick={() => phase = 'lobby'}
-        class="px-8 py-4 font-syne font-black text-base uppercase tracking-wider"
-        style="border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5)">
+        class="px-8 py-4 font-syne font-black text-base uppercase tracking-wider transition-all"
+        style="border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6)">
         ← Lobby
       </button>
     </div>
@@ -1086,14 +1524,16 @@ $effect(() => {
 </main>
 
 <style>
-  :global(body) {
-    background: #070710;
-    color: #e0e0f0;
-    font-family: 'Space Mono', monospace;
-    overflow-x: hidden;
-  }
-  .font-syne { font-family: 'Syne', sans-serif; }
+	.slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: #00f5ff;
+		cursor: pointer;
+	}
 
+<<<<<<< HEAD:hover-art-frontend/src/routes/skribbl/+page.svelte
   
   @keyframes pulse {
     0%, 100% { opacity: 1; }
@@ -1109,4 +1549,18 @@ $effect(() => {
 
   
   canvas { image-rendering: pixelated; }
+=======
+	.page-item {
+		border-color: transparent;
+		background: transparent;
+	}
+	.page-item:hover {
+		border-color: rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.03);
+	}
+	.page-item.active {
+		border-color: rgba(0, 245, 255, 0.2);
+		background: rgba(0, 245, 255, 0.05);
+	}
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/skribbl/+page.svelte
 </style>

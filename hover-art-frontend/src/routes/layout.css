@@ -20,12 +20,13 @@
 		color: #e0e0f0;
 		font-family: 'Space Mono', monospace;
 		overflow-x: hidden;
-		cursor: none; 
+		/*cursor: none;*/
 	}
 }
 
 
 
+/*
 .cursor {
 	position: fixed;
 	width: 20px;
@@ -52,7 +53,7 @@
 	z-index: 9999;
 	transform: translate(-50%, -50%);
 }
-
+*/
 @theme {
   --font-boxing: "Barlow Condensed", Impact, sans-serif;
  

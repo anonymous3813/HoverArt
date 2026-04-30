@@ -1,3 +1,4 @@
+<<<<<<< HEAD:hover-art-frontend/src/routes/games/imposter/+page.svelte
 <script lang="ts">import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import TwoTruthsLieGame from '$lib/components/TwoTruthsLieGame.svelte';
@@ -6,6 +7,17 @@ onMount(() => {
     if (!isLoggedIn())
         goto('/login');
 });
+=======
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import TwoTruthsLieGame from './TwoTruthsLieGame.svelte';
+	import { isLoggedIn } from '$lib/auth.svelte.ts';
+
+	onMount(() => {
+		//if (!isLoggedIn()) goto('/login');
+	});
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/two-truths/+page.svelte
 </script>
 
 <svelte:head>

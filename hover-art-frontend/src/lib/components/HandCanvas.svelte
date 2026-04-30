@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <script lang="ts">import { onMount, onDestroy } from 'svelte';
 import { classifyGesture } from '$lib/gestures.ts';
 import { blendGet, blendshapeTable } from '$lib/face/blendshapeTable.ts';
@@ -29,10 +30,63 @@ let lastTimestamp = -1;
 let lastFpsTime = performance.now();
 let frameCount = 0;
 type HandState = {
+=======
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import { classifyGesture } from '$lib/gestures.ts';
+  import { blendGet, blendshapeTable } from '$lib/face/blendshapeTable.ts';
+  import {
+    HandLandmarker,
+    FaceLandmarker,
+    FilesetResolver,
+    DrawingUtils
+  } from '@mediapipe/tasks-vision';
+
+  type Point = { x: number; y: number };
+  type Stroke = { points: Point[]; color: string; width: number };
+
+  let {
+    brushColor = $bindable('#ffffff'),
+    brushSize = $bindable(4),
+    moodState = $bindable<'joyful' | 'neutral'>('neutral'),
+    onGestureChange = (_gesture: string) => {},
+    onStrokeComplete = (_stroke: Stroke) => {},
+    onClear = () => {}
+  } = $props();
+
+  let isLoading = $state(true);
+  let error = $state<string | null>(null);
+  let gesture = $state('none');
+  let gesture1 = $state('none');
+  let fps = $state(0);
+  let handsDetected = $state(0);
+
+  let videoEl: HTMLVideoElement;
+  let canvasEl: HTMLCanvasElement;
+  let overlayEl: HTMLCanvasElement;
+
+  let handLandmarker: HandLandmarker;
+  let faceLandmarker: FaceLandmarker;
+  let animFrameId: number;
+  let stream: MediaStream;
+  let lastTimestamp = -1;
+  let lastFpsTime = performance.now();
+  let frameCount = 0;
+
+  const SMOOTH_SAMPLES = 5;
+  const width = 1280;
+  const height = 720;
+
+  type HandState = {
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
     isDrawing: boolean;
     currentStroke: Point[];
-    posBuffer: Point[];
+    xBuffer: Float32Array;
+    yBuffer: Float32Array;
+    bufferIndex: number;
+    bufferCount: number;
     gesture: string;
+<<<<<<< HEAD
 };
 const handStates: HandState[] = [
     { isDrawing: false, currentStroke: [], posBuffer: [], gesture: 'none' },
@@ -47,6 +101,23 @@ const SMOOTH_SAMPLES = 5;
 const width = 1280;
 const height = 720;
 onMount(async () => {
+=======
+  };
+
+  const handStates: HandState[] = [
+    { isDrawing: false, currentStroke: [], xBuffer: new Float32Array(SMOOTH_SAMPLES), yBuffer: new Float32Array(SMOOTH_SAMPLES), bufferIndex: 0, bufferCount: 0, gesture: 'none' },
+    { isDrawing: false, currentStroke: [], xBuffer: new Float32Array(SMOOTH_SAMPLES), yBuffer: new Float32Array(SMOOTH_SAMPLES), bufferIndex: 0, bufferCount: 0, gesture: 'none' }
+  ];
+
+  let strokes: Stroke[] = [];
+  let pendingWheelColor = $state('#ffffff');
+  let lastSmileCheck = 0;
+
+  const CLEAR_HOLD_MS = 1500;
+  let bothPalmsStart = 0;
+
+  onMount(async () => {
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
     try {
         await initMediaPipe();
         await initCamera();
@@ -138,6 +209,7 @@ function processResult(result: any) {
     overlayCtx.clearRect(0, 0, overlayEl.width, overlayEl.height);
     handsDetected = result.landmarks.length;
     for (let i = 0; i < 2; i++) {
+<<<<<<< HEAD
         if (i >= result.landmarks.length) {
             if (handStates[i].isDrawing)
                 finishHandStroke(i);
@@ -199,6 +271,75 @@ function processResult(result: any) {
             drawColorStrip(overlayCtx, smoothed.x);
         }
         drawCursor(overlayCtx, smoothed.x, smoothed.y, hs.gesture);
+=======
+      if (i >= result.landmarks.length) {
+        if (handStates[i].isDrawing) finishHandStroke(i);
+        if (i === 0 && handStates[0].gesture === 'color-select') brushColor = pendingWheelColor;
+        handStates[i].gesture = 'none';
+        handStates[i].bufferCount = 0;
+        handStates[i].bufferIndex = 0;
+        if (i === 0) { gesture = 'none'; onGestureChange('none'); }
+        if (i === 1) gesture1 = 'none';
+        continue;
+      }
+
+      const landmarks = result.landmarks[i];
+
+      drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, {
+        color: i === 0 ? '#00f5ff44' : '#ff4ecd44',
+        lineWidth: 1
+      });
+      drawingUtils.drawLandmarks(landmarks, {
+        color: i === 0 ? '#00f5ffaa' : '#ff4ecdaa',
+        fillColor: i === 0 ? '#00f5ff33' : '#ff4ecd33',
+        lineWidth: 1,
+        radius: 3
+      });
+
+      const hs = handStates[i];
+      const detectedGesture = classifyGesture(landmarks);
+
+      if (detectedGesture !== hs.gesture) {
+        const prev = hs.gesture;
+        hs.gesture = detectedGesture;
+        if (i === 0) {
+          gesture = detectedGesture;
+          onGestureChange(detectedGesture);
+          if (prev === 'color-select') brushColor = pendingWheelColor;
+        } else {
+          gesture1 = detectedGesture;
+        }
+        if (detectedGesture !== 'draw') finishHandStroke(i);
+      }
+
+      const tip = landmarks[8];
+      const rawX = tip.x * canvasEl.width;
+      const rawY = tip.y * canvasEl.height;
+
+      hs.xBuffer[hs.bufferIndex] = rawX;
+      hs.yBuffer[hs.bufferIndex] = rawY;
+      hs.bufferIndex = (hs.bufferIndex + 1) % SMOOTH_SAMPLES;
+      if (hs.bufferCount < SMOOTH_SAMPLES) hs.bufferCount++;
+
+      let sumX = 0;
+      let sumY = 0;
+      for (let j = 0; j < hs.bufferCount; j++) {
+        sumX += hs.xBuffer[j];
+        sumY += hs.yBuffer[j];
+      }
+      const smoothed = { x: sumX / hs.bufferCount, y: sumY / hs.bufferCount };
+
+      if (hs.gesture === 'draw') {
+        drawHandSegment(drawCtx, smoothed, i);
+      } else if (hs.gesture === 'erase') {
+        finishHandStroke(i);
+        drawCtx.clearRect(smoothed.x - 20, smoothed.y - 20, 40, 40);
+      } else if (hs.gesture === 'color-select' && i === 0) {
+        drawColorStrip(overlayCtx, smoothed.x);
+      }
+
+      drawCursor(overlayCtx, smoothed.x, smoothed.y, hs.gesture);
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
     }
     const bothOpen = handStates[0].gesture === 'open-palm' && handStates[1].gesture === 'open-palm';
     if (bothOpen) {
@@ -219,8 +360,24 @@ function processResult(result: any) {
 function drawHandSegment(ctx: CanvasRenderingContext2D, pos: Point, handIndex: number) {
     const hs = handStates[handIndex];
     if (!hs.isDrawing) {
+<<<<<<< HEAD
         hs.isDrawing = true;
         hs.currentStroke = [{ ...pos }];
+=======
+      hs.isDrawing = true;
+      hs.currentStroke = [pos];
+    } else {
+      const prev = hs.currentStroke[hs.currentStroke.length - 1];
+      hs.currentStroke.push(pos);
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.strokeStyle = brushColor;
+      ctx.lineWidth = brushSize;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
     }
     else {
         const prev = hs.currentStroke[hs.currentStroke.length - 1];
@@ -314,14 +471,41 @@ function drawClearIndicator(ctx: CanvasRenderingContext2D, progress: number) {
     ctx.fillText('🖐 🖐', cx, cy - 12);
     ctx.fillText('Hold to clear', cx, cy + 14);
     ctx.restore();
+<<<<<<< HEAD
 }
 function clearCanvas() {
+=======
+  }
+
+  // ── Public API ──────────────────────────────────────────────────────────────
+
+  /**
+   * Clear the drawing canvas.
+   * @param emit  When false, skips calling onClear() — used for silent page switches.
+   */
+  function clearCanvas(emit = true) {
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
     const ctx = canvasEl.getContext('2d')!;
     ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
     strokes = [];
     handStates.forEach(hs => { hs.isDrawing = false; hs.currentStroke = []; });
+<<<<<<< HEAD
 }
 function exportCanvas() {
+=======
+    if (emit) onClear();
+  }
+
+  /** Restore a previously saved page snapshot onto the canvas. */
+  function loadSnapshot(dataUrl: string) {
+    const ctx = canvasEl.getContext('2d')!;
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0);
+    img.src = dataUrl;
+  }
+
+  function exportCanvas() {
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
     const link = document.createElement('a');
     link.download = 'hoverart.png';
     link.href = canvasEl.toDataURL('image/png');
@@ -345,26 +529,51 @@ function drawPeerStroke(stroke: Stroke) {
         ctx.stroke();
     }
     strokes.push(stroke);
+<<<<<<< HEAD
 }
 function clearFromPeer() {
     clearCanvas();
 }
 export { clearCanvas, exportCanvas, getCanvasDataUrl, strokes, drawPeerStroke, clearFromPeer };
 function drawCursor(ctx: CanvasRenderingContext2D, x: number, y: number, g: string) {
+=======
+  }
+
+  function clearFromPeer() {
+    clearCanvas(false); // don't re-broadcast
+  }
+
+  export { clearCanvas, loadSnapshot, exportCanvas, getCanvasDataUrl, strokes, drawPeerStroke, clearFromPeer };
+
+  // ── Badge derivations ───────────────────────────────────────────────────────
+
+  function drawCursor(ctx: CanvasRenderingContext2D, x: number, y: number, g: string) {
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
     ctx.save();
     ctx.beginPath();
     ctx.arc(x, y, brushSize / 2 + 6, 0, Math.PI * 2);
     ctx.strokeStyle =
+<<<<<<< HEAD
         g === 'draw' ? '#00f5ff' :
             g === 'erase' ? '#ff4444' :
                 g === 'color-select' ? pendingWheelColor :
                     '#ffffff44';
+=======
+      g === 'draw'         ? '#00f5ff' :
+      g === 'erase'        ? '#ff4444' :
+      g === 'color-select' ? pendingWheelColor :
+      g === 'l_shape'      ? '#ffdd57' :
+      g === 'thumb_up'     ? '#4eff91' :
+      g === 'thumb_down'   ? '#4eff91' :
+                             '#ffffff44';
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();
 }
 let badgeLabel = $derived(handStates[0].gesture === 'open-palm' && handStates[1].gesture === 'open-palm' ? '🖐 🖐 Hold to Clear' :
     gesture === 'draw' && gesture1 === 'draw' ? '✏ Drawing ×2' :
+<<<<<<< HEAD
         gesture === 'draw' ? '✏ Drawing' :
             gesture === 'erase' ? '⬜ Erasing' :
                 gesture === 'color-select' ? '✌ Picking Color' :
@@ -373,6 +582,25 @@ let badgeLabel = $derived(handStates[0].gesture === 'open-palm' && handStates[1]
                             '✋ Hovering');
 let badgeGesture = $derived(handStates[0].gesture === 'open-palm' && handStates[1].gesture === 'open-palm' ? 'clear' :
     gesture !== 'none' ? gesture : gesture1);
+=======
+    gesture === 'draw'         ? '✏ Drawing' :
+    gesture === 'erase'        ? '⬜ Erasing' :
+    gesture === 'color-select' ? '✌ Picking Color' :
+    gesture === 'open-palm'    ? '🖐 Open Palm' :
+    gesture === 'l_shape'      ? '︻ Hold for Sidebar…' :
+    gesture === 'thumb_up'     ? '☝ Prev Page' :
+    gesture === 'thumb_down'   ? '👇 Next Page' :
+    gesture === 'pinky_up'     ? '☝ Pinky Up' :
+    gesture === 'quiet_coyote'  ? '🤘  Quiet Coyote' :
+    gesture1 === 'draw'        ? '✏ Drawing (hand 2)' :
+                                 '✋ Hovering'
+  );
+
+  let badgeGesture = $derived(
+    handStates[0].gesture === 'open-palm' && handStates[1].gesture === 'open-palm' ? 'clear' :
+    gesture !== 'none' ? gesture : gesture1
+  );
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9
 </script>
 
 <div class="relative w-full bg-[#0a0a0f] rounded-xl overflow-hidden font-mono">
@@ -445,6 +673,14 @@ let badgeGesture = $derived(handStates[0].gesture === 'open-palm' && handStates[
       <span class="text-white/55 min-w-[90px]">🖐 🖐 Both palms</span>
       <span>Hold to Clear</span>
     </div>
+    <div class="flex gap-2.5 text-[0.7rem] text-white/35">
+      <span class="text-white/55 min-w-[90px]">︻ L-shape</span>
+      <span>Hold 2s · Sidebar</span>
+    </div>
+    <div class="flex gap-2.5 text-[0.7rem] text-white/35">
+      <span class="text-white/55 min-w-[90px]">☝↑ / 👇↓</span>
+      <span>Prev / Next page</span>
+    </div>
   </div>
 </div>
 
@@ -483,6 +719,19 @@ let badgeGesture = $derived(handStates[0].gesture === 'open-palm' && handStates[
     background: #ff444422;
     border-color: #ff444466;
     color: #ff6666;
+  }
+
+  .gesture-badge[data-gesture='l_shape'] {
+    background: #ffdd5722;
+    border-color: #ffdd5766;
+    color: #ffdd57;
+  }
+
+  .gesture-badge[data-gesture='point_up'],
+  .gesture-badge[data-gesture='point_down'] {
+    background: #4eff9122;
+    border-color: #4eff9166;
+    color: #4eff91;
   }
 
   .mood-badge {

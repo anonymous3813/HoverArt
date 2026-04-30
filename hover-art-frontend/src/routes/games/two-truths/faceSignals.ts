@@ -1,4 +1,9 @@
+<<<<<<< HEAD:hover-art-frontend/src/lib/imposter/faceSignals.ts
 import { blendGet, blendshapeTable } from '../face/blendshapeTable.js';
+=======
+import { blendGet, blendshapeTable } from '$lib/face/blendshapeTable';
+
+>>>>>>> 68aa9ff59fba30d9b0ec6d395e6fc1f0bb7b10b9:hover-art-frontend/src/routes/games/two-truths/faceSignals.ts
 export type FaceSample = {
     t: number;
     brow: number;

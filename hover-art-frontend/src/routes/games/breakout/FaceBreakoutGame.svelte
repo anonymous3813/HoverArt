@@ -1,8 +1,8 @@
 <script lang="ts">import { onDestroy, createEventDispatcher } from 'svelte';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
-import { faceHorizontalFromLandmarks, paddle01HighSensitivity } from '../breakout/faceHorizontal.js';
-import { createInitialState, startGame, updateGame, drawBreakout, type BreakoutState } from '../breakout/gameEngine.js';
-import { createPongState, restartPong, stepPong, drawPongFace, serializePong, applyPongSerialized, type FacePongState, type PongSerialized } from '../breakout/pongEngine.js';
+import { faceHorizontalFromLandmarks, paddle01HighSensitivity } from './faceHorizontal.js';
+import { createInitialState, startGame, updateGame, drawBreakout, type BreakoutState } from './gameEngine.js';
+import { createPongState, restartPong, stepPong, drawPongFace, serializePong, applyPongSerialized, type FacePongState, type PongSerialized } from './pongEngine.js';
 import { gameSocket } from '$lib/services/gameSocket';
 const dispatch = createEventDispatcher<{
     gameOver: void;
