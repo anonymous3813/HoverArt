@@ -27,7 +27,7 @@ const phrases = [
     }
 ];
 if (!isOpenAiConfigured()) {
-    console.error('FAIL: No OPENAI_SECRET / OPENAI_API_KEY after loading hover-art-backend/.env');
+    console.error('FAIL: No OPENAI_SECRET after loading hover-art-backend/.env');
     process.exit(1);
 }
 try {

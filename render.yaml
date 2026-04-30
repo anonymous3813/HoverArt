@@ -3,7 +3,7 @@
 #
 # After deploy, set in the Render service:
 #   DATABASE_URL — Render PostgreSQL "Internal" or "External" URL, or Neon / Supabase, etc.
-#   OPENAI_API_KEY (or OPENAI_SECRET) — optional; Two Truths + Omni need it
+#   OPENAI_SECRET — optional; Two Truths + Omni use this one variable
 #   SMTP_* — optional; email share from canvas
 #
 # Frontend: VITE_BACKEND_URL=https://<this-service>.onrender.com
@@ -24,8 +24,6 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: OPENAI_API_KEY
-        sync: false
       - key: OPENAI_SECRET
         sync: false
       - key: SMTP_HOST

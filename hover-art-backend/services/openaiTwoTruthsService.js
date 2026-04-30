@@ -1,18 +1,10 @@
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 export function getOpenAiKey() {
-    const candidates = [
-        process.env.OPENAI_SECRET,
-        process.env.OPENAI_API_KEY,
-        process.env.OPENAI_KEY
-    ];
-    for (const raw of candidates) {
-        if (typeof raw === 'string') {
-            const k = raw.trim();
-            if (k.length > 0)
-                return k;
-        }
-    }
-    return null;
+    const raw = process.env.OPENAI_SECRET;
+    if (typeof raw !== 'string')
+        return null;
+    const k = raw.trim();
+    return k.length > 0 ? k : null;
 }
 export function isOpenAiConfigured() {
     return getOpenAiKey() !== null;
