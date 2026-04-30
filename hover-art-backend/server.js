@@ -26,6 +26,9 @@ app.use((req, res, next) => {
     }
     next();
 });
+app.get('/health', (_req, res) => {
+    res.status(200).json({ ok: true });
+});
 app.use('/', emailRouter);
 app.use('/auth', authRouter);
 app.use('/games', twoTruthsRouter);

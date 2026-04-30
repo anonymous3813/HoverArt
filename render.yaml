@@ -1,0 +1,40 @@
+# Render Blueprint — https://render.com/docs/infrastructure-as-code
+# New service: Dashboard → New → Blueprint → connect this repo.
+#
+# After deploy, set in the Render service:
+#   DATABASE_URL — Render PostgreSQL "Internal" or "External" URL, or Neon / Supabase, etc.
+#   OPENAI_API_KEY (or OPENAI_SECRET) — optional; Two Truths + Omni need it
+#   SMTP_* — optional; email share from canvas
+#
+# Frontend: VITE_BACKEND_URL=https://<this-service>.onrender.com
+
+services:
+  - type: web
+    name: hover-art-backend
+    runtime: node
+    plan: free
+    rootDir: hover-art-backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
