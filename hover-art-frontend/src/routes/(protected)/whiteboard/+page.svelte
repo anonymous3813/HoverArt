@@ -1,10 +1,12 @@
 ﻿<script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { io, type Socket } from 'socket.io-client';
 	import HandCanvas from '$lib/components/HandCanvas.svelte';
 	import { auth, clearAuth } from '$lib/auth.svelte.ts';
 	import { getBackendUrl } from '$lib/backendUrl';
+	import { createGestureStore } from '$lib/stores/gestures.svelte.ts';
+	import { createNotebookStore, type CanvasHandle } from '$lib/stores/notebook.svelte.ts';
+	import { createRoomStore } from '$lib/stores/room.svelte.ts';
 
 	const BACKEND_URL = getBackendUrl();
 
@@ -30,199 +32,41 @@
 	];
 
 	let brushColor = $state('#00f5ff');
-	let brushSize = $state(4);
+	let brushSize = $state(6);
 	let moodState = $state<'joyful' | 'neutral'>('neutral');
 	let handCanvas: HandCanvas | null = null;
 	let currentGesture = $state('none');
-
+	let activeTool = $state<'select' | 'draw' | 'erase'>('draw');
 	let presetColors = $derived(moodState === 'joyful' ? JOYFUL_COLORS : NEUTRAL_COLORS);
 
-	let socket: Socket | null = null;
-	let roomCode = $state('');
-	let joinInput = $state('');
-	let isInRoom = $state(false);
-	let peerCount = $state(0);
-	let roomError = $state('');
-	let copied = $state(false);
+	const notebook = createNotebookStore(() => handCanvas as CanvasHandle | null);
+	const room = createRoomStore();
+	const gesture = createGestureStore({
+		onLHoldComplete: () => {
+			notebook.sidebarOpen = !notebook.sidebarOpen;
+		},
+		onPinkyHoldComplete: () => {
+			notebook.addPage();
+		},
+		onQuietCoyoteHoldComplete: () => {
+			notebook.sidebarOpen = false;
+		},
+		onNavGesture: (direction) => {
+			notebook.navigatePages(direction);
+		}
+	});
 
 	let showShareModal = $state(false);
+	let showCollabPopover = $state(false);
+	let copied = $state(false);
 	let shareEmail = $state('');
 	let shareMessage = $state('');
 	let shareStatus = $state<'idle' | 'sending' | 'sent' | 'error'>('idle');
 	let shareError = $state('');
 
-	// ── Page / notebook state ────────────────────────────────────────────────
-	interface Page {
-		id: string;
-		name: string;
-		snapshot: string;
-	}
-
-	let pages = $state<Page[]>([{ id: crypto.randomUUID(), name: 'Page 1', snapshot: '' }]);
-	let currentPageId = $state(pages[0].id);
-	let sidebarOpen = $state(false);
-	let editingPageId = $state<string | null>(null);
-	let editingName = $state('');
-
-	// ── L-shape hold state ───────────────────────────────────────────────────
-	let lHoldStart = $state<number | null>(null);
-	let lHoldProgress = $state(0);
-	const L_HOLD_MS = 2000;
-	const FLICKER_GRACE_MS = 300;
-	let lLastSeenAt = 0;
-
-	// Poll currentGesture every 50ms 
-	const holdPollInterval = setInterval(() => {
-		const now = Date.now();
-
-		if (currentGesture === 'l_shape') {
-			lLastSeenAt = now;
-			if (lHoldStart === null) lHoldStart = now;
-			lHoldProgress = Math.min((now - lHoldStart) / L_HOLD_MS, 1);
-			if (lHoldProgress >= 1) {
-				lHoldStart = null;
-				lHoldProgress = 0;
-				sidebarOpen = !sidebarOpen;
-			}
-		} else {
-			if (now - lLastSeenAt > FLICKER_GRACE_MS) {
-				lHoldStart = null;
-				lHoldProgress = 0;
-			}
-		}
-	}, 50);
-
-	let pinkyHoldStart = $state<number | null>(null);
-	let pinkyHoldProgress = $state(0);
-	const PINKY_HOLD_MS = 2000;
-	let pinkyLastSeenAt = 0;
-
-	const pinkyPollInterval = setInterval(() => {
-		const now = Date.now();
-
-		if (currentGesture === 'pinky_up') {
-			pinkyLastSeenAt = now;
-			if (pinkyHoldStart === null) pinkyHoldStart = now;
-			pinkyHoldProgress = Math.min((now - pinkyHoldStart) / PINKY_HOLD_MS, 1);
-
-			if (pinkyHoldProgress >= 1) {
-				pinkyHoldStart = null;
-				pinkyHoldProgress = 0;
-				addPage();
-			}
-		} else {
-			if (now - pinkyLastSeenAt > FLICKER_GRACE_MS) {
-				pinkyHoldStart = null;
-				pinkyHoldProgress = 0;
-			}
-		}
-	}, 50);
-
-	// ── quietCoyote gesture hold state ───────────────────────────────────────────────
-	let quietCoyoteHoldStart = $state<number | null>(null);
-	let quietCoyoteHoldProgress = $state(0);
-	const quietCoyote_HOLD_MS = 2000; // 2-second hold
-	let quietCoyoteLastSeenAt = 0;
-
-	// Poll interval for quietCoyote gesture
-	const quietCoyotePollInterval = setInterval(() => {
-		const now = Date.now();
-
-		if (currentGesture === 'quiet_coyote') {
-			quietCoyoteLastSeenAt = now;
-
-			if (quietCoyoteHoldStart === null) quietCoyoteHoldStart = now;
-
-			quietCoyoteHoldProgress = Math.min((now - quietCoyoteHoldStart) / quietCoyote_HOLD_MS, 1);
-
-			if (quietCoyoteHoldProgress >= 1) {
-				// Reset timer
-				quietCoyoteHoldStart = null;
-				quietCoyoteHoldProgress = 0;
-
-				sidebarOpen = false;
-			}
-		} else {
-			// Reset progress if gesture disappears for more than flicker grace
-			if (now - quietCoyoteLastSeenAt > FLICKER_GRACE_MS) {
-				quietCoyoteHoldStart = null;
-				quietCoyoteHoldProgress = 0;
-			}
-		}
-	}, 50);
-
-	// ── Nav gesture debounce ─────────────────────────────────────────────────
-	let lastNavGesture = $state('none');
-	let navDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-	const NAV_DEBOUNCE_MS = 800;
-
-	// ── Page helpers ─────────────────────────────────────────────────────────
-	function currentPageIndex() {
-		return pages.findIndex((p) => p.id === currentPageId);
-	}
-
-	function switchToPage(id: string) {
-		if (id === currentPageId) return;
-		const snap = handCanvas?.getCanvasDataUrl() ?? '';
-		pages = pages.map((p) => (p.id === currentPageId ? { ...p, snapshot: snap } : p));
-		currentPageId = id;
-		setTimeout(() => {
-			handCanvas?.clearCanvas(false);
-			const target = pages.find((p) => p.id === id);
-			if (target?.snapshot) handCanvas?.loadSnapshot(target.snapshot);
-		}, 30);
-	}
-
-	function addPage() {
-		const newPage: Page = {
-			id: crypto.randomUUID(),
-			name: `Page ${pages.length + 1}`,
-			snapshot: ''
-		};
-		pages = [...pages, newPage];
-		switchToPage(newPage.id);
-	}
-
-	function deletePage(id: string) {
-		if (pages.length === 1) return;
-		const idx = pages.findIndex((p) => p.id === id);
-		const next = pages[idx === 0 ? 1 : idx - 1];
-		pages = pages.filter((p) => p.id !== id);
-		if (id === currentPageId) switchToPage(next.id);
-	}
-
-	function startEditing(page: Page) {
-		editingPageId = page.id;
-		editingName = page.name;
-	}
-
-	function commitEdit() {
-		if (editingPageId && editingName.trim()) {
-			pages = pages.map((p) => (p.id === editingPageId ? { ...p, name: editingName.trim() } : p));
-		}
-		editingPageId = null;
-	}
-
-	function navigatePages(direction: 'up' | 'down') {
-		const idx = currentPageIndex();
-		if (direction === 'up' && idx > 0) switchToPage(pages[idx - 1].id);
-		if (direction === 'down' && idx < pages.length - 1) switchToPage(pages[idx + 1].id);
-	}
-
-	// Gesture handler
 	function handleGestureChange(g: string) {
 		currentGesture = g;
-
-		if (sidebarOpen && (g === 'thumb_up' || g === 'thumb_down')) {
-			if (g !== lastNavGesture) {
-				lastNavGesture = g;
-				navigatePages(g === 'thumb_up' ? 'up' : 'down');
-				if (navDebounceTimer) clearTimeout(navDebounceTimer);
-				navDebounceTimer = setTimeout(() => {
-					lastNavGesture = 'none';
-				}, NAV_DEBOUNCE_MS);
-			}
-		}
+		gesture.handleGestureChange(g, notebook.sidebarOpen);
 	}
 
 	function handleStrokeComplete(stroke: {
@@ -230,87 +74,33 @@
 		color: string;
 		width: number;
 	}) {
-		if (!isInRoom || !socket) return;
-		socket.emit('stroke', { stroke });
-	}
-
-	onMount(() => {
-		socket = io(BACKEND_URL, { autoConnect: true });
-
-		socket.on('room-created', ({ code }: { code: string }) => {
-			roomCode = code;
-			isInRoom = true;
-			roomError = '';
-		});
-
-		socket.on('room-joined', ({ strokes, code }: { strokes: any[]; code: string }) => {
-			roomCode = code;
-			isInRoom = true;
-			roomError = '';
-			strokes.forEach((s) => handCanvas?.drawPeerStroke(s));
-		});
-
-		socket.on('room-error', ({ message }: { message: string }) => {
-			roomError = message;
-		});
-
-		socket.on('room-left', () => {
-			roomCode = '';
-			isInRoom = false;
-			peerCount = 0;
-		});
-
-		socket.on('peer-count', ({ count }: { count: number }) => {
-			peerCount = count;
-		});
-
-		socket.on('peer-stroke', ({ stroke }: { stroke: any }) => {
-			handCanvas?.drawPeerStroke(stroke);
-		});
-
-		socket.on('peer-clear', () => {
-			handCanvas?.clearFromPeer();
-		});
-	});
-
-	onDestroy(() => {
-		socket?.disconnect();
-		clearInterval(holdPollInterval);
-		clearInterval(pinkyPollInterval);
-		clearInterval(quietCoyotePollInterval);
-		if (navDebounceTimer) clearTimeout(navDebounceTimer);
-	});
-
-	function createRoom() {
-		roomError = '';
-		socket?.emit('create-room');
-	}
-	function joinRoom() {
-		if (!joinInput.trim()) return;
-		roomError = '';
-		socket?.emit('join-room', { code: joinInput.trim() });
-	}
-	function leaveRoom() {
-		socket?.emit('leave-room');
-		joinInput = '';
+		room.emitStroke(stroke);
 	}
 
 	function handleClear() {
 		handCanvas?.clearCanvas();
-		if (isInRoom) socket?.emit('clear-canvas');
+		room.emitClear();
 	}
 
-	function handleGestureClear() {
-		if (isInRoom) socket?.emit('clear-canvas');
+	function createRoom() {
+		room.createRoom();
+	}
+
+	function joinRoom() {
+		room.joinRoom();
+	}
+
+	function leaveRoom() {
+		room.leaveRoom();
 	}
 
 	async function copyCode() {
-		await navigator.clipboard.writeText(roomCode);
+		await navigator.clipboard.writeText(room.roomCode);
 		copied = true;
 		setTimeout(() => (copied = false), 1800);
 	}
 
-	function openShareModal() {
+	function openShare() {
 		shareEmail = '';
 		shareMessage = '';
 		shareStatus = 'idle';
@@ -341,10 +131,22 @@
 			shareError = err.message;
 		}
 	}
+
+	onMount(() => {
+		room.init(
+			(stroke) => handCanvas?.drawPeerStroke(stroke),
+			() => handCanvas?.clearFromPeer(),
+		);
+	});
+
+	onDestroy(() => {
+		room.destroy();
+		gesture.destroy();
+	});
 </script>
 
 <svelte:head>
-	<title>HoverArt — Gesture Canvas</title>
+	<title>HoverArt</title>
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link
@@ -353,169 +155,372 @@
 	/>
 </svelte:head>
 
-<!-- Share modal -->
-{#if showShareModal}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="w-full max-w-md rounded-2xl border border-white/10 bg-[#111118] p-6 shadow-2xl"
-			style="font-family: 'Space Mono', monospace;"
+<!-- ── CANVAS ────────────────────────────────────────────────────────────── -->
+<div class="fixed inset-0 z-0">
+	<HandCanvas
+		bind:this={handCanvas}
+		bind:brushColor
+		bind:brushSize
+		bind:moodState
+		onGestureChange={handleGestureChange}
+		onStrokeComplete={handleStrokeComplete}
+		onClear={handleClear}
+	/>
+</div>
+
+<!-- ── TOP BAR ───────────────────────────────────────────────────────────── -->
+<!--
+	Three zones: [left: logo + pages] [center: tools] [right: room + share + user]
+	All in one fixed bar so nothing overlaps the canvas edges.
+-->
+<header
+	class="fixed inset-x-0 top-0 z-20 flex h-12 items-center
+               border-b border-white/10 bg-[#070710]/90 backdrop-blur-md"
+>
+	<!-- LEFT: logo + page nav ─────────────────────────────────────────────── -->
+	<div class="flex shrink-0 items-center gap-1 px-2">
+		<a
+			href="/"
+			class="px-1.5 text-[17px] font-bold text-white no-underline hover:opacity-80"
+			style="font-family:'Syne',sans-serif;"
 		>
-			<h2 class="mb-1 text-lg font-bold text-white" style="font-family: 'Syne', sans-serif;">
-				Share via Email
-			</h2>
-			<p class="mb-5 text-xs text-white/30">Your current canvas will be sent as an image.</p>
-			<div class="flex flex-col gap-3">
-				<div class="flex flex-col gap-1.5">
-					<label class="text-[0.65rem] tracking-widest text-white/25 uppercase">Recipient</label>
-					<input
-						type="email"
-						placeholder="friend@example.com"
-						bind:value={shareEmail}
-						class="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/20 focus:border-white/30"
-					/>
-				</div>
-				<div class="flex flex-col gap-1.5">
-					<label class="text-[0.65rem] tracking-widest text-white/25 uppercase"
-						>Message (optional)</label
-					>
-					<textarea
-						placeholder="Check out what I made!"
-						bind:value={shareMessage}
-						rows="2"
-						class="resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/20 focus:border-white/30"
-					></textarea>
-				</div>
-				{#if shareStatus === 'error'}<p class="text-xs text-red-400">{shareError}</p>{/if}
-				{#if shareStatus === 'sent'}<p class="text-xs text-[#4eff91]">✓ Email sent!</p>{/if}
-			</div>
-			<div class="mt-5 flex justify-end gap-2">
-				<button
-					class="cursor-pointer rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/50 transition-colors hover:text-white"
-					onclick={() => (showShareModal = false)}
-					disabled={shareStatus === 'sending'}>Cancel</button
-				>
-				<button
-					class="cursor-pointer rounded-lg border border-[#00f5ff]/30 bg-[#00f5ff]/10 px-5 py-2 text-xs text-[#00f5ff] transition-colors hover:border-[#00f5ff]/60 hover:bg-[#00f5ff]/20 disabled:opacity-40"
-					onclick={sendEmail}
-					disabled={shareStatus === 'sending' || shareStatus === 'sent' || !shareEmail.trim()}
-				>
-					{shareStatus === 'sending' ? 'Sending…' : 'Send'}
-				</button>
-			</div>
+			Hover<span class="text-[#00f5ff]">Art</span>
+		</a>
+
+		<div class="mx-1 h-5 w-px bg-white/10"></div>
+
+		<!-- Pages button (opens sidebar) -->
+		<button
+			class="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs
+			       text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
+			onclick={() => (notebook.sidebarOpen = true)}
+		>
+			<span class="text-[#00f5ff]/70">≡</span>
+			{notebook.pages.find((p) => p.id === notebook.currentPageId)?.name ?? 'Page'}
+			<span class="text-white/25">· {notebook.currentPageIndex() + 1}/{notebook.pages.length}</span>
+		</button>
+
+		<div class="mx-1 h-5 w-px bg-white/10"></div>
+
+		<!-- Undo / Redo -->
+		<button
+			class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-sm
+			       text-white/40 transition-colors hover:bg-white/5 hover:text-white/80"
+			title="Undo"
+			onclick={() => handCanvas?.undo?.()}>↩</button
+		>
+		<button
+			class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-sm
+			       text-white/40 transition-colors hover:bg-white/5 hover:text-white/80"
+			title="Redo"
+			onclick={() => handCanvas?.redo?.()}>↪</button
+		>
+	</div>
+
+	<!-- CENTER: tool buttons ───────────────────────────────────────────────── -->
+	<div class="flex flex-1 items-center justify-center gap-0.5">
+		<div
+			class="flex items-center gap-0.5 rounded-xl border border-white/10 bg-white/[0.04] px-1.5 py-1"
+		>
+			<!-- Drawing tools -->
+			<button
+				class="top-tool-btn {activeTool === 'select' ? 'top-tool-active' : ''}"
+				title="Select (S)"
+				onclick={() => (activeTool = 'select')}>↖</button
+			>
+			<button
+				class="top-tool-btn {activeTool === 'draw' ? 'top-tool-active' : ''}"
+				title="Draw (D)"
+				onclick={() => (activeTool = 'draw')}>✏</button
+			>
+			<button
+				class="top-tool-btn {activeTool === 'erase' ? 'top-tool-active' : ''}"
+				title="Erase (E)"
+				onclick={() => (activeTool = 'erase')}>⬜</button
+			>
+
+			<div class="mx-1 h-5 w-px bg-white/10"></div>
+
+			<!-- Gesture legend (read-only, just icons for reference) -->
+			<button class="top-tool-btn cursor-default opacity-50" title="Index finger up = draw"
+				>☝</button
+			>
+			<button class="top-tool-btn cursor-default opacity-50" title="Fist = undo">✊</button>
+			<button class="top-tool-btn cursor-default opacity-50" title="Peace = erase">✌</button>
+
+			<div class="mx-1 h-5 w-px bg-white/10"></div>
+
+			<!-- Actions -->
+			<button
+				class="top-tool-btn text-red-400/70 hover:bg-red-500/10 hover:text-red-400"
+				title="Clear canvas"
+				onclick={handleClear}>✕</button
+			>
+			<button class="top-tool-btn" title="Export PNG" onclick={() => handCanvas?.exportCanvas()}
+				>↓</button
+			>
 		</div>
 	</div>
-{/if}
 
-<!-- Sidebar backdrop -->
-{#if sidebarOpen}
+	<!-- RIGHT: room + share + user ────────────────────────────────────────── -->
+	<div class="flex shrink-0 items-center gap-2 px-2">
+		{#if room.isInRoom}
+			<button
+				class="flex cursor-pointer items-center gap-1.5 rounded-md border border-green-500/20 bg-green-500/10
+				       px-2.5 py-1 text-xs font-medium
+				       text-green-400 transition-colors hover:bg-green-500/20"
+				onclick={() => (showCollabPopover = !showCollabPopover)}
+			>
+				<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500"></span>
+				{room.peerCount} in room · <strong>{room.roomCode}</strong>
+				<span class="text-green-600">⌄</span>
+			</button>
+		{:else}
+			<button
+				class="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs
+				       text-white/40 transition-colors hover:bg-white/5 hover:text-white/70"
+				onclick={() => (showCollabPopover = !showCollabPopover)}
+			>
+				<span class="h-1.5 w-1.5 rounded-full bg-white/20"></span>
+				Collaborate <span class="text-white/20">⌄</span>
+			</button>
+		{/if}
+
+		<button
+			class="cursor-pointer rounded-md px-2.5 py-1 text-xs
+			       text-white/40 transition-colors hover:bg-white/5 hover:text-white/70"
+			onclick={openShare}>Share ✉</button
+		>
+
+		{#if auth.user}
+			<div
+				class="flex h-7 w-7 cursor-default items-center justify-center
+			            rounded-full border border-[#00f5ff]/20 bg-[#00f5ff]/10 text-[11px] font-bold
+			            text-[#00f5ff]/70"
+				title={auth.user.username}
+			>
+				{auth.user.username.slice(0, 2).toUpperCase()}
+			</div>
+			<button
+				class="cursor-pointer rounded-md px-2.5 py-1 text-xs
+				       text-white/25 transition-colors hover:bg-white/5 hover:text-white/50"
+				onclick={() => {
+					clearAuth();
+					goto('/login');
+				}}>Sign out</button
+			>
+		{/if}
+	</div>
+</header>
+
+<!-- ── BRUSH BAR (bottom center) ────────────────────────────────────────── -->
+<div
+	class="fixed bottom-5 left-1/2 z-20 flex h-[52px] -translate-x-1/2 items-center rounded-2xl
+            border border-white/10 bg-[#0d0d1a]/95 px-4 whitespace-nowrap backdrop-blur-md"
+>
+	<!-- Color swatches -->
+	<div class="flex items-center gap-1.5 pr-1">
+		{#each presetColors as c (c)}
+			<button
+				class="h-[22px] w-[22px] cursor-pointer rounded-full border-2 p-0
+				       transition-transform hover:scale-125
+				       {brushColor === c ? 'swatch-active scale-110' : 'border-transparent'}"
+				style:background={c}
+				onclick={() => (brushColor = c)}
+				aria-label={c}
+			></button>
+		{/each}
+		<label
+			class="relative flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center
+			       justify-center rounded-full border border-dashed border-white/20"
+			title="Custom colour"
+		>
+			<span class="block h-3.5 w-3.5 rounded-full" style:background={brushColor}></span>
+			<input type="color" class="absolute h-px w-px opacity-0" bind:value={brushColor} />
+		</label>
+	</div>
+
+	<div class="mx-3.5 h-7 w-px bg-white/10"></div>
+
+	<!-- Size slider -->
+	<div class="flex items-center gap-2">
+		<span class="text-[9px] tracking-widest text-white/25">SIZE</span>
+		<input
+			type="range"
+			min="1"
+			max="40"
+			step="1"
+			bind:value={brushSize}
+			class="brush-slider w-[90px]"
+		/>
+		<span class="min-w-[28px] text-[11px] text-white/40">{brushSize}px</span>
+	</div>
+
+	<div class="mx-3.5 h-7 w-px bg-white/10"></div>
+
+	<!-- Live preview dot -->
 	<div
-		class="fixed inset-0 z-30 bg-black/40 backdrop-blur-[2px]"
+		class="shrink-0 rounded-full transition-all duration-150"
+		style:width="{Math.max(brushSize * 1.5, 6)}px"
+		style:height="{Math.max(brushSize * 1.5, 6)}px"
+		style:max-width="36px"
+		style:max-height="36px"
+		style:background={brushColor}
+	></div>
+</div>
+
+<!-- ── GESTURE HUD (bottom right) ───────────────────────────────────────── -->
+<div
+	class="fixed left-5 bottom-5 z-20 flex min-w-[150px] flex-col gap-1.5 rounded-xl border
+            border-white/10 bg-[#0d0d1a]/95 px-3.5 py-2.5 backdrop-blur-md"
+>
+	<span class="text-[8px] tracking-[0.12em] text-white/25">GESTURE</span>
+	<div
+		class="flex items-center gap-1.5 text-[11px]
+	            {currentGesture !== 'none' ? 'text-green-400' : 'text-white/30'}"
+	>
+		<span
+			class="h-1.5 w-1.5 shrink-0 rounded-full
+		             {currentGesture !== 'none' ? 'bg-green-500' : 'bg-white/15'}"
+		></span>
+		{currentGesture === 'none' ? 'none detected' : currentGesture.replace(/_/g, ' ')}
+	</div>
+	{#if gesture.lHoldProgress > 0}
+		<div class="flex flex-col gap-1">
+			<span class="text-[9px] text-white/25">sidebar toggle</span>
+			<div class="h-[3px] overflow-hidden rounded-full bg-white/10">
+				<div
+					class="h-full rounded-full bg-[#00f5ff] transition-[width] duration-[50ms]"
+					style:width="{gesture.lHoldProgress * 100}%"
+				></div>
+			</div>
+		</div>
+	{/if}
+	{#if gesture.pinkyHoldProgress > 0}
+		<div class="flex flex-col gap-1">
+			<span class="text-[9px] text-white/25">new page</span>
+			<div class="h-[3px] overflow-hidden rounded-full bg-white/10">
+				<div
+					class="h-full rounded-full bg-[#00f5ff] transition-[width] duration-[50ms]"
+					style:width="{gesture.pinkyHoldProgress * 100}%"
+				></div>
+			</div>
+		</div>
+	{/if}
+</div>
+
+<!-- ── SIDEBAR BACKDROP ───────────────────────────────────────────────────── -->
+{#if notebook.sidebarOpen}
+	<div
+		class="fixed inset-0 z-[28] bg-black/50 backdrop-blur-[2px]"
 		role="button"
 		tabindex="-1"
 		aria-label="Close sidebar"
-		onclick={() => (sidebarOpen = false)}
-		onkeydown={(e) => e.key === 'Escape' && (sidebarOpen = false)}
+		onclick={() => (notebook.sidebarOpen = false)}
+		onkeydown={(e) => e.key === 'Escape' && (notebook.sidebarOpen = false)}
 	></div>
 {/if}
 
-<!-- Sidebar drawer -->
+<!-- ── SIDEBAR ────────────────────────────────────────────────────────────── -->
 <aside
-	class="fixed top-0 left-0 z-40 flex h-full w-72 flex-col border-r border-white/10 bg-[#0d0d14] shadow-2xl"
-	style:transform={sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'}
-	style="font-family: 'Space Mono', monospace; transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);"
+	class="fixed top-0 left-0 z-30 flex h-full w-[280px] flex-col
+	       border-r border-white/10 bg-[#0a0a14]
+	       transition-transform duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]
+	       {notebook.sidebarOpen ? 'translate-x-0' : '-translate-x-full'}"
+	style="font-family:'Space Mono',monospace;"
 >
-	<div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
-		<span class="text-base font-bold text-white" style="font-family: 'Syne', sans-serif;"
+	<div class="flex items-center justify-between border-b border-white/10 px-4 py-3.5">
+		<span class="text-[15px] font-bold text-white/90" style="font-family:'Syne',sans-serif;"
 			>Notebook</span
 		>
 		<button
-			class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/40 transition-colors hover:text-white"
-			onclick={() => (sidebarOpen = false)}
-			aria-label="Close sidebar">✕</button
+			class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border
+			       border-white/10 bg-white/5 text-xs text-white/30 transition-colors hover:text-white/70"
+			onclick={() => (notebook.sidebarOpen = false)}>✕</button
 		>
 	</div>
 
 	<div
-		class="mx-4 mt-3 mb-1 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-[0.6rem] leading-relaxed tracking-widest text-white/20 uppercase"
+		class="mx-3.5 mt-2.5 mb-1 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2
+	            text-[10px] leading-relaxed text-white/25"
 	>
-		<span class="text-white/30">L</span> gesture · hold 2s to toggle<br />
-		<span class="text-white/30">↑↓</span> point to navigate pages
+		<strong class="text-white/40">L</strong> gesture · hold 2s to toggle<br />
+		<strong class="text-white/40">↑↓</strong> thumbs to navigate
 	</div>
 
-	<nav class="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-3">
-		{#each pages as page, i (page.id)}
+	<nav class="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2">
+		{#each notebook.pages as page, i (page.id)}
 			<div
-				class="page-item group relative flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-all duration-150"
-				class:active={page.id === currentPageId}
-				onclick={() => {
-					switchToPage(page.id);
-					sidebarOpen = false;
-				}}
+				class="group flex cursor-pointer items-center gap-2.5 rounded-xl border px-2.5 py-2
+				       transition-all duration-100
+				       {page.id === notebook.currentPageId
+					? 'border-[#00f5ff]/20 bg-[#00f5ff]/5'
+					: 'border-transparent hover:border-white/10 hover:bg-white/[0.03]'}"
 				role="button"
 				tabindex="0"
-				onkeydown={(e) => e.key === 'Enter' && switchToPage(page.id)}
+				onclick={() => {
+					notebook.switchToPage(page.id);
+					notebook.sidebarOpen = false;
+				}}
+				onkeydown={(e) => e.key === 'Enter' && notebook.switchToPage(page.id)}
 			>
 				<div
-					class="relative h-11 w-16 flex-shrink-0 overflow-hidden rounded-md border border-white/10 bg-[#1a1a26]"
+					class="relative flex h-[42px] w-[60px] shrink-0 items-center
+				            justify-center overflow-hidden rounded-md border border-white/10 bg-white/[0.04]"
 				>
 					{#if page.snapshot}
-						<img src={page.snapshot} alt="Page thumbnail" class="h-full w-full object-cover" />
+						<img src={page.snapshot} alt="thumbnail" class="h-full w-full object-cover" />
 					{:else}
-						<div class="flex h-full w-full items-center justify-center text-[0.5rem] text-white/15">
-							empty
-						</div>
+						<span class="text-[8px] text-white/20">empty</span>
 					{/if}
-					{#if page.id === currentPageId}
-						<div class="absolute inset-y-0 left-0 w-0.5 rounded-r bg-[#00f5ff]"></div>
+					{#if page.id === notebook.currentPageId}
+						<div class="absolute inset-y-0 left-0 w-[3px] rounded-r-sm bg-[#00f5ff]"></div>
 					{/if}
 				</div>
 
 				<div class="min-w-0 flex-1">
-					{#if editingPageId === page.id}
+					{#if notebook.editingPageId === page.id}
 						<input
+							class="w-full rounded border border-[#00f5ff]/30 bg-white/[0.06] px-1.5 py-0.5
+							       text-xs text-white/90 outline-none"
 							type="text"
-							bind:value={editingName}
-							class="w-full rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-xs text-white outline-none focus:border-[#00f5ff]/50"
-							style="font-family: 'Space Mono', monospace;"
-							onblur={commitEdit}
+							bind:value={notebook.editingName}
+							onblur={() => notebook.commitEdit()}
 							onkeydown={(e) => {
-								if (e.key === 'Enter') commitEdit();
-								if (e.key === 'Escape') editingPageId = null;
+								if (e.key === 'Enter') notebook.commitEdit();
+								if (e.key === 'Escape') notebook.cancelEditing();
 							}}
 							autofocus
 							onclick={(e) => e.stopPropagation()}
 						/>
 					{:else}
 						<p
-							class="truncate text-xs {page.id === currentPageId ? 'text-white' : 'text-white/50'}"
+							class="m-0 truncate text-xs
+						          {page.id === notebook.currentPageId ? 'text-white/90' : 'text-white/40'}"
 						>
 							{page.name}
 						</p>
-						<p class="text-[0.55rem] text-white/20">Page {i + 1}</p>
+						<p class="m-0 mt-0.5 text-[10px] text-white/25">Page {i + 1}</p>
 					{/if}
 				</div>
 
-				<div
-					class="flex flex-shrink-0 flex-col gap-1 opacity-0 transition-opacity group-hover:opacity-100"
-				>
+				<div class="flex flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
 					<button
-						class="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-[0.6rem] text-white/30 transition-colors hover:text-[#00f5ff]"
+						class="flex h-5 w-5 items-center justify-center rounded text-[11px] text-white/25
+						       transition-colors hover:bg-[#00f5ff]/10 hover:text-[#00f5ff]"
 						onclick={(e) => {
 							e.stopPropagation();
-							startEditing(page);
+							notebook.startEditing(page);
 						}}
 						title="Rename">✎</button
 					>
-					{#if pages.length > 1}
+					{#if notebook.pages.length > 1}
 						<button
-							class="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-[0.6rem] text-white/30 transition-colors hover:text-red-400"
+							class="flex h-5 w-5 items-center justify-center rounded text-[11px] text-white/25
+							       transition-colors hover:bg-red-500/10 hover:text-red-400"
 							onclick={(e) => {
 								e.stopPropagation();
-								deletePage(page.id);
+								notebook.deletePage(page.id);
 							}}
 							title="Delete">✕</button
 						>
@@ -527,284 +532,240 @@
 
 	<div class="border-t border-white/10 p-3">
 		<button
-			class="w-full cursor-pointer rounded-xl border border-dashed border-white/15 bg-white/[0.03] py-2.5 text-xs text-white/30 transition-all hover:border-[#00f5ff]/30 hover:text-[#00f5ff]"
-			style="font-family: 'Space Mono', monospace;"
-			onclick={addPage}>+ New page</button
+			class="w-full cursor-pointer rounded-lg border border-dashed border-white/10 bg-transparent
+			       py-2.5 text-xs text-white/25 transition-colors hover:border-[#00f5ff]/30
+			       hover:text-[#00f5ff]/70"
+			onclick={() => notebook.addPage()}>+ New page</button
 		>
 	</div>
 </aside>
 
-<!-- Sidebar pull tab (always visible on left edge when drawer is closed) -->
-<button
-	class="fixed top-1/2 left-0 z-40 flex -translate-y-1/2 cursor-pointer flex-col items-center justify-center gap-1 rounded-r-xl border border-l-0 border-white/10 bg-[#0d0d14] px-2 py-4 text-white/30 transition-colors hover:text-white/70"
-	style:opacity={sidebarOpen ? '0' : '1'}
-	style:pointer-events={sidebarOpen ? 'none' : 'auto'}
-	style="transition: opacity 0.2s;"
-	onclick={() => (sidebarOpen = true)}
-	aria-label="Open notebook sidebar"
->
-	<!-- L-hold arc progress -->
-	{#if lHoldProgress > 0}
-		<svg width="28" height="28" viewBox="0 0 28 28" class="absolute">
-			<circle cx="14" cy="14" r="11" fill="none" stroke="#00f5ff22" stroke-width="2.5" />
-			<circle
-				cx="14"
-				cy="14"
-				r="11"
-				fill="none"
-				stroke="#00f5ff"
-				stroke-width="2.5"
-				stroke-dasharray="{lHoldProgress * 69.1} 69.1"
-				stroke-linecap="round"
-				transform="rotate(-90 14 14)"
-			/>
-		</svg>
-	{/if}
-	<span
-		class="text-[0.55rem] tracking-widest uppercase"
-		style="writing-mode: vertical-rl; letter-spacing: 0.15em;">Pages</span
-	>
-	<span class="text-[0.6rem]">▶</span>
-</button>
-
-<!-- Main content -->
-<main
-	class="mx-auto flex max-w-[1100px] flex-col gap-5 px-5 pt-6 pb-12"
-	style="font-family: 'Space Mono', monospace;"
->
-	<header class="flex items-center justify-between">
-		<div>
-			<h1
-				class="m-0 text-4xl font-extrabold tracking-tight text-white md:text-6xl"
-				style="font-family: 'Syne', sans-serif;"
-			>
-				Hover<span class="text-[#00f5ff]">Art</span>
-			</h1>
-			<p class="mt-1.5 text-xs tracking-widest text-white/30 uppercase">
-				Draw with your hands. No touch required.
-			</p>
-		</div>
-		<div class="flex items-center gap-3">
-			<!-- Page breadcrumb -->
-			<button
-				class="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/40 transition-colors hover:border-white/25 hover:text-white/70"
-				onclick={() => (sidebarOpen = true)}
-			>
-				<span class="text-[#00f5ff]">≡</span>
-				<span>{pages.find((p) => p.id === currentPageId)?.name ?? 'Page'}</span>
-				<span class="text-white/20">· {currentPageIndex() + 1}/{pages.length}</span>
-			</button>
-			{#if auth.user}
-				<span class="text-xs text-white/40"
-					><span class="text-white/60">{auth.user.username}</span></span
-				>
-				<button
-					class="cursor-pointer rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/40 transition-colors hover:border-white/25 hover:text-white/70"
-					style="font-family: 'Space Mono', monospace;"
-					onclick={() => {
-						clearAuth();
-						goto('/login');
-					}}>Sign out</button
-				>
-			{/if}
-		</div>
-	</header>
-
+<!-- ── COLLABORATE POPOVER ───────────────────────────────────────────────── -->
+{#if showCollabPopover}
 	<div
-		class="flex flex-wrap items-end gap-7 rounded-xl border border-white/10 bg-[#111118] px-5 py-4"
+		class="fixed top-14 right-3 z-40 w-[260px] rounded-xl border border-white/10 bg-[#0d0d1a]
+	            shadow-2xl shadow-black/50"
 	>
-		<div class="flex flex-col gap-2">
-			<label for="color-picker" class="text-[0.65rem] tracking-widest text-white/25 uppercase">
-				Color
-				{#if moodState === 'joyful'}<span class="ml-1 text-[#ffdd57]">· joyful palette</span>{/if}
-			</label>
-			<div class="flex flex-wrap items-center gap-1.5">
-				{#each presetColors as c (c)}
-					<button
-						class="h-6 w-6 cursor-pointer rounded-full border-2 p-0 transition-transform duration-150 hover:scale-125"
-						class:scale-125={brushColor === c}
-						class:border-white={brushColor === c}
-						class:border-transparent={brushColor !== c}
-						style:background={c}
-						onclick={() => (brushColor = c)}
-						aria-label={c}
-					></button>
-				{/each}
-				<input
-					type="color"
-					bind:value={brushColor}
-					class="h-6 w-6 cursor-pointer overflow-hidden rounded-full border-none bg-transparent p-0"
-					title="Custom color"
-				/>
-			</div>
-		</div>
-
-		<div class="flex flex-col gap-2">
-			<label for="brush-size" class="text-[0.65rem] tracking-widest text-white/25 uppercase">
-				Size <span class="text-[#00f5ff]">{brushSize}px</span>
-			</label>
-			<input
-				type="range"
-				id="brush-size"
-				min="1"
-				max="30"
-				bind:value={brushSize}
-				class="slider h-1 w-36 cursor-pointer appearance-none rounded-sm bg-white/10 outline-none"
-			/>
-		</div>
-
-		<div class="ml-auto flex flex-row items-end gap-2">
+		<div class="flex items-center justify-between border-b border-white/10 px-4 py-3">
+			<span class="text-[13px] font-bold text-white/80" style="font-family:'Syne',sans-serif;">
+				Collaborate
+			</span>
 			<button
-				class="cursor-pointer rounded-lg border border-red-500/20 bg-white/5 px-4 py-2 text-xs text-red-400 transition-colors duration-150 hover:border-red-500/70 hover:bg-red-500/15"
-				style="font-family: 'Space Mono', monospace;"
-				onclick={handleClear}>Clear</button
-			>
-			<button
-				class="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-xs text-[#e0e0e8] transition-colors duration-150 hover:border-white/30 hover:bg-white/10"
-				style="font-family: 'Space Mono', monospace;"
-				onclick={() => handCanvas?.exportCanvas()}>Export PNG</button
-			>
-			<button
-				class="cursor-pointer rounded-lg border border-[#ff4ecd]/25 bg-[#ff4ecd]/5 px-4 py-2 text-xs text-[#ff4ecd] transition-colors duration-150 hover:border-[#ff4ecd]/55 hover:bg-[#ff4ecd]/10"
-				style="font-family: 'Space Mono', monospace;"
-				onclick={openShareModal}>Share ✉</button
+				class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-xs
+				       text-white/30 transition-colors hover:bg-white/5 hover:text-white/60"
+				onclick={() => (showCollabPopover = false)}>✕</button
 			>
 		</div>
-	</div>
 
-	<div class="rounded-xl border border-white/10 bg-[#111118] px-5 py-4">
-		<div class="mb-3 flex items-center justify-between">
-			<span class="text-[0.65rem] tracking-widest text-white/25 uppercase">Collaborate</span>
-			{#if isInRoom}
-				<span class="flex items-center gap-1.5 text-xs text-[#4eff91]">
-					<span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#4eff91]"></span>
-					{peerCount}
-					{peerCount === 1 ? 'person' : 'people'} in room
-				</span>
-			{:else}
-				<span class="flex items-center gap-1.5 text-xs text-white/20">
-					<span class="inline-block h-1.5 w-1.5 rounded-full bg-white/20"></span>
-					Not in a room
-				</span>
-			{/if}
-		</div>
-		{#if !isInRoom}
-			<div class="flex flex-wrap gap-3">
+		<div class="flex flex-col gap-2.5 p-4">
+			{#if !room.isInRoom}
 				<button
-					class="cursor-pointer rounded-lg border border-[#00f5ff]/25 bg-[#00f5ff]/5 px-4 py-2 text-xs text-[#00f5ff] transition-colors hover:border-[#00f5ff]/60 hover:bg-[#00f5ff]/10"
-					style="font-family: 'Space Mono', monospace;"
-					onclick={createRoom}>Create Room</button
+					class="cursor-pointer rounded-lg border border-[#00f5ff]/20 bg-[#00f5ff]/5 px-3.5 py-2
+					       text-xs text-[#00f5ff]/80 transition-colors hover:bg-[#00f5ff]/10"
+					style="font-family:'Space Mono',monospace;"
+					onclick={createRoom}>Create room</button
 				>
-				<div class="flex gap-2">
+
+				<div class="flex gap-1.5">
 					<input
-						class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none placeholder:text-white/20 focus:border-white/25"
-						style="font-family: 'Space Mono', monospace;"
+						class="flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5
+						       text-xs text-white/80 transition-colors outline-none
+						       placeholder:text-white/20 focus:border-[#00f5ff]/30"
+						style="font-family:'Space Mono',monospace;"
 						placeholder="Room code"
-						bind:value={joinInput}
+						bind:value={room.joinInput}
 						onkeydown={(e) => e.key === 'Enter' && joinRoom()}
 					/>
 					<button
-						class="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-xs text-[#e0e0e8] transition-colors hover:border-white/30 hover:bg-white/10"
-						style="font-family: 'Space Mono', monospace;"
+						class="cursor-pointer rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5
+						       text-xs text-white/50 transition-colors hover:bg-white/[0.07]"
+						style="font-family:'Space Mono',monospace;"
 						onclick={joinRoom}>Join</button
 					>
 				</div>
-				{#if roomError}<span class="w-full text-xs text-red-400">{roomError}</span>{/if}
-			</div>
-		{:else}
-			<div class="flex flex-wrap items-center gap-3">
-				<span class="text-xs text-white/40">Room code:</span>
-				<span
-					class="rounded-md border border-white/15 bg-white/5 px-3 py-1.5 text-sm font-bold tracking-[0.2em] text-white"
-					>{roomCode}</span
-				>
-				<button
-					class="cursor-pointer rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs transition-colors hover:border-white/25 hover:bg-white/10"
-					style="font-family: 'Space Mono', monospace; color: {copied ? '#4eff91' : '#e0e0e8'};"
-					onclick={copyCode}>{copied ? '✓ Copied' : 'Copy'}</button
-				>
-				<button
-					class="ml-auto cursor-pointer rounded-lg border border-red-500/20 bg-white/5 px-3 py-1.5 text-xs text-red-400 transition-colors hover:border-red-500/50 hover:bg-red-500/10"
-					style="font-family: 'Space Mono', monospace;"
-					onclick={leaveRoom}>Leave</button
-				>
-			</div>
-		{/if}
-	</div>
 
-	<!-- L-hold progress bar (shown above canvas while gesture is active) -->
-	<!--{#if lHoldProgress > 0}
-		<div
-			class="flex items-center gap-3 rounded-lg border border-[#00f5ff]/20 bg-[#00f5ff]/5 px-4 py-2"
-		>
-			<svg width="18" height="18" viewBox="0 0 18 18">
-				<circle cx="9" cy="9" r="7" fill="none" stroke="#00f5ff22" stroke-width="2" />
-				<circle
-					cx="9"
-					cy="9"
-					r="7"
-					fill="none"
-					stroke="#00f5ff"
-					stroke-width="2"
-					stroke-dasharray="{lHoldProgress * 44} 44"
-					stroke-linecap="round"
-					transform="rotate(-90 9 9)"
-				/>
-			</svg>
-			<span class="text-xs text-[#00f5ff]/70"
-				>Hold L-shape to {sidebarOpen ? 'close' : 'open'} sidebar… {Math.round(
-					lHoldProgress * 100
-				)}%</span
-			>
+				{#if room.roomError}<p class="m-0 text-[11px] text-red-400/80">{room.roomError}</p>{/if}
+			{:else}
+				<div class="flex items-center gap-2 text-xs text-green-400">
+					<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"></span>
+					{room.peerCount}
+					{room.peerCount === 1 ? 'person' : 'people'} in room
+				</div>
+
+				<div class="flex items-center gap-2">
+					<span
+						class="flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5
+					             text-sm font-bold tracking-[0.15em] text-white/80"
+					>
+						{room.roomCode}
+					</span>
+					<button
+						class="cursor-pointer rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5
+						       text-xs transition-colors hover:bg-white/[0.07]
+						       {copied ? 'text-green-400' : 'text-white/50'}"
+						style="font-family:'Space Mono',monospace;"
+						onclick={copyCode}>{copied ? '✓ Copied' : 'Copy'}</button
+					>
+				</div>
+
+				<button
+					class="cursor-pointer rounded-lg border border-red-500/20 bg-red-500/5 px-3.5 py-2
+					       text-xs text-red-400/80 transition-colors hover:bg-red-500/10"
+					style="font-family:'Space Mono',monospace;"
+					onclick={leaveRoom}>Leave room</button
+				>
+			{/if}
 		</div>
-	{/if}-->
-
-	<div class="overflow-hidden rounded-xl border border-white/10 shadow-[0_0_60px_#00f5ff0a]">
-		<HandCanvas
-			bind:this={handCanvas}
-			bind:brushColor
-			bind:brushSize
-			bind:moodState
-			onGestureChange={handleGestureChange}
-			onStrokeComplete={handleStrokeComplete}
-			onClear={handleGestureClear}
-		/>
 	</div>
+{/if}
 
-	<div class="flex items-center gap-3 pl-1 text-[0.7rem] text-white/20">
-		<div
-			class="rounded-full transition-all duration-100"
-			style:width="{brushSize * 2}px"
-			style:height="{brushSize * 2}px"
-			style:background={brushColor}
-			style:min-width="2px"
-			style:min-height="2px"
-		></div>
-		<span>Brush preview</span>
-		<span class="ml-auto text-white/10">gesture: {currentGesture}</span>
+<!-- ── SHARE MODAL ────────────────────────────────────────────────────────── -->
+{#if showShareModal}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[4px]"
+		role="dialog"
+		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showShareModal = false;
+		}}
+	>
+		<div class="w-[420px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/10 bg-[#0d0d1a]">
+			<div class="flex items-start justify-between border-b border-white/[0.07] px-5 pt-5 pb-4">
+				<div>
+					<h2
+						class="m-0 text-[15px] font-bold text-white/90"
+						style="font-family:'Syne',sans-serif;"
+					>
+						Share via email
+					</h2>
+					<p class="m-0 mt-0.5 text-[11px] text-white/30">Your canvas will be sent as an image</p>
+				</div>
+				<button
+					class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border
+					       border-white/10 bg-white/5 text-xs text-white/30 transition-colors hover:text-white/70"
+					onclick={() => (showShareModal = false)}>✕</button
+				>
+			</div>
+
+			<div class="flex flex-col gap-3 px-5 py-4">
+				<div class="flex flex-col gap-1.5">
+					<label class="text-[9px] tracking-[0.1em] text-white/25 uppercase">Recipient</label>
+					<input
+						type="email"
+						class="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[13px]
+						       text-white/80 transition-colors outline-none
+						       placeholder:text-white/20 focus:border-[#00f5ff]/30"
+						style="font-family:'Space Mono',monospace;"
+						placeholder="friend@example.com"
+						bind:value={shareEmail}
+					/>
+				</div>
+				<div class="flex flex-col gap-1.5">
+					<label class="text-[9px] tracking-[0.1em] text-white/25 uppercase"
+						>Message (optional)</label
+					>
+					<textarea
+						class="resize-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2
+						       text-[13px] text-white/80 transition-colors
+						       outline-none placeholder:text-white/20 focus:border-[#00f5ff]/30"
+						style="font-family:'Space Mono',monospace;"
+						rows="3"
+						placeholder="Check out what I made!"
+						bind:value={shareMessage}
+					></textarea>
+				</div>
+				{#if shareStatus === 'error'}
+					<p class="m-0 text-[11px] text-red-400/80">{shareError}</p>
+				{/if}
+				{#if shareStatus === 'sent'}
+					<p class="m-0 text-[11px] text-green-400">✓ Email sent!</p>
+				{/if}
+			</div>
+
+			<div class="flex justify-end gap-2 px-5 pb-5">
+				<button
+					class="cursor-pointer rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-xs
+					       text-white/40 transition-colors hover:bg-white/[0.07] disabled:opacity-40"
+					style="font-family:'Space Mono',monospace;"
+					onclick={() => (showShareModal = false)}
+					disabled={shareStatus === 'sending'}>Cancel</button
+				>
+				<button
+					class="cursor-pointer rounded-lg border border-[#00f5ff]/20 bg-[#00f5ff]/5 px-4 py-2
+					       text-xs text-[#00f5ff]/80 transition-colors hover:bg-[#00f5ff]/10
+					       disabled:opacity-40"
+					style="font-family:'Space Mono',monospace;"
+					onclick={sendEmail}
+					disabled={shareStatus === 'sending' || shareStatus === 'sent' || !shareEmail.trim()}
+					>{shareStatus === 'sending' ? 'Sending…' : 'Send ✉'}</button
+				>
+			</div>
+		</div>
 	</div>
-</main>
+{/if}
 
 <style>
-	.slider::-webkit-slider-thumb {
+	/* Only what Tailwind can't do */
+
+	:global(body) {
+		margin: 0;
+		overflow: hidden;
+	}
+
+	/* Active swatch: white inner border + cyan outer ring */
+	.swatch-active {
+		border-color: rgba(255, 255, 255, 0.9);
+		outline: 2px solid #00f5ff;
+		outline-offset: 1px;
+	}
+
+	/* Range slider thumb */
+	.brush-slider {
+		-webkit-appearance: none;
+		appearance: none;
+		height: 3px;
+		border-radius: 2px;
+		background: rgba(255, 255, 255, 0.1);
+		outline: none;
+		cursor: pointer;
+	}
+	.brush-slider::-webkit-slider-thumb {
 		-webkit-appearance: none;
 		width: 14px;
 		height: 14px;
 		border-radius: 50%;
-		background: #00f5ff;
+		background: #0d0d1a;
+		border: 2px solid #00f5ff;
 		cursor: pointer;
 	}
 
-	.page-item {
-		border-color: transparent;
+	/* Top toolbar button — shared base, avoids repeating long class strings */
+	.top-tool-btn {
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 7px;
+		border: none;
 		background: transparent;
+		font-size: 15px;
+		cursor: pointer;
+		color: rgba(255, 255, 255, 0.45);
+		transition:
+			background 0.1s,
+			color 0.1s;
 	}
-	.page-item:hover {
-		border-color: rgba(255, 255, 255, 0.08);
-		background: rgba(255, 255, 255, 0.03);
+	.top-tool-btn:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: rgba(255, 255, 255, 0.8);
 	}
-	.page-item.active {
-		border-color: rgba(0, 245, 255, 0.2);
-		background: rgba(0, 245, 255, 0.05);
+	.top-tool-active {
+		background: rgba(0, 245, 255, 0.1);
+		color: #00f5ff;
+	}
+	.top-tool-active:hover {
+		background: rgba(0, 245, 255, 0.15);
+		color: #00f5ff;
 	}
 </style>

@@ -17,7 +17,7 @@
 	let gameStarted = false;
 
 	onMount(() => {
-		if (!isLoggedIn()) goto('/login');
+		//if (!isLoggedIn()) goto('/login');
 		gameSocket.connect();
 		gameSocket.onPlayersUpdate((data) => {
 			players = data.players;
