@@ -2,7 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { classifyGesture } from '$lib/whiteboard/gestures.ts';
 	import { blendGet, blendshapeTable } from '$lib/face/blendshapeTable.ts';
-	import PerformanceOverlay from './PerformanceOverlay.svelte';
+	import PerformanceOverlay from './whiteboard/WhiteboardPerformanceOverlay.svelte';
 	import {
 		HandLandmarker,
 		FaceLandmarker,

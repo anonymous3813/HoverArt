@@ -1,5 +1,5 @@
 <script>
-	let { fps, frameTimeMs, handInferenceMs, faceInferenceMs, handsDetected } = $props();
+	let { fps, frameTimeMs, handInferenceMs, handsDetected } = $props();
 </script>
 
 <div
@@ -15,8 +15,7 @@
 	<div class="mb-1 font-bold text-cyan-200">Performance</div>
 
 	<div>FPS: {fps}</div>
-	<div>Frame: {frameTimeMs.toFixed(1) ?? 0}ms</div>
-	<div>Hand: {handInferenceMs.toFixed(1) ?? 0}ms</div>
-	<div>Face: {faceInferenceMs.toFixed(1) ?? 0}ms</div>
+	<div>Frame: {(frameTimeMs ?? 0).toFixed(1)}ms</div>
+	<div>Hand: {(handInferenceMs ?? 0).toFixed(1)}ms</div>
 	<div>Hands: {handsDetected}</div>
 </div>
