@@ -31,12 +31,10 @@
   let videoEl: HTMLVideoElement;
 
   // ── Plain (non-reactive) game objects ─────────────────────────────────────
-  // These live in JS only — canvas renders them directly, no DOM diffing.
   let blocks:    Block[]    = [];
   let particles: Particle[] = [];
   let feedbacks: Feedback[] = [];
 
-  // Internal score mirrors so we can batch HUD updates
   let _score = 0, _combo = 0, _maxCombo = 0, _health = 100;
 
   // ── MediaPipe ─────────────────────────────────────────────────────────────
@@ -52,7 +50,9 @@
   const COLS  = [0.2, 0.4, 0.6, 0.8];
   const ROWS  = [0.25, 0.5, 0.75];
   const DIRS: Dir[] = ['left', 'right', 'up', 'down'];
-  const HIT_ZONE = 0.25;
+
+  // FIX 5: Widened hit zone from 0.25 → 0.45
+  const HIT_ZONE = 0.45;
 
   const DIFFICULTY = {
     easy:   { spawnMs: 1800, speed: 0.38 },
@@ -70,7 +70,6 @@
     try {
       statusMsg = 'Loading hand model…';
 
-      // Use tasks-vision — modern, reliable, GPU-accelerated
       const vision = await FilesetResolver.forVisionTasks(
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
       );
@@ -98,7 +97,6 @@
       handsReady = true;
       statusMsg = 'Camera ready';
 
-      // Single unified RAF loop — game update + MediaPipe + render
       rafId = requestAnimationFrame(mainLoop);
     } catch (e: any) {
       statusMsg = `Error: ${e?.message ?? e}`;
@@ -106,28 +104,25 @@
     }
   }
 
-  // ── Main loop (single RAF — no competing loops) ───────────────────────────
+  // ── Main loop ─────────────────────────────────────────────────────────────
   function mainLoop(ts: number) {
     rafId = requestAnimationFrame(mainLoop);
 
-    // 1. Hand detection (only when video is ready)
     if (videoEl.readyState >= 2 && handLandmarker) {
       const result = handLandmarker.detectForVideo(videoEl, ts);
       processHands(result, ts);
     }
 
-    // 2. Game simulation
     if (phase === 'playing') {
       const dt = lastTime ? Math.min((ts - lastTime) / 1000, 0.05) : 0;
       lastTime = ts;
       updateGame(dt);
     }
 
-    // 3. Canvas render
     renderFrame();
   }
 
-  // ── Hand processing ───────────────────────────────────────────────────────
+  // ── Hand processing (all fixes applied) ───────────────────────────────────
   function processHands(result: any, _ts: number) {
     if (!result.landmarks?.length) {
       handPos = null;
@@ -144,21 +139,30 @@
     if (flickCooldown || phase !== 'playing') return;
 
     const now = Date.now();
-    flickBuffer.push({ x: nx, y: ny, t: now });
-    flickBuffer = flickBuffer.filter(p => now - p.t < 200);
-    if (flickBuffer.length < 4) return;
+
+    // FIX 6 (bonus): Filter jitter — only add point if it actually moved
+    const lastPt = flickBuffer[flickBuffer.length - 1];
+    if (!lastPt || Math.hypot(nx - lastPt.x, ny - lastPt.y) > 0.005) {
+      flickBuffer.push({ x: nx, y: ny, t: now });
+    }
+
+    // FIX 2: Wider time window (350ms was 200ms) and fewer required points (3 was 4)
+    flickBuffer = flickBuffer.filter(p => now - p.t < 350);
+    if (flickBuffer.length < 3) return;
 
     const first = flickBuffer[0];
-    const last  = flickBuffer[flickBuffer.length - 1];
-    const dx    = last.x - first.x;
-    const dy    = last.y - first.y;
+    const dx    = nx - first.x;
+    const dy    = ny - first.y;
     const dist  = Math.hypot(dx, dy);
-    if (dist < 0.15) return;
 
+    // FIX 1: Lower distance threshold (0.06 was 0.15)
+    if (dist < 0.06) return;
+
+    // FIX 3: More forgiving axis ratios — picks dominant axis instead of rejecting diagonals
     const ratio        = Math.abs(dx) / (Math.abs(dy) + 0.001);
-    const isHorizontal = ratio > 1.8;
-    const isVertical   = ratio < 0.55;
-    if (!isHorizontal && !isVertical) return; // diagonal — ignore
+    const isHorizontal = ratio > 1.2;  // was 1.8
+    const isVertical   = ratio < 0.85; // was 0.55
+    if (!isHorizontal && !isVertical) return;
 
     const dir: Dir = isHorizontal
       ? (dx > 0 ? 'right' : 'left')
@@ -167,17 +171,17 @@
     tryHit(dir);
     flickBuffer = [];
     flickCooldown = true;
-    setTimeout(() => { flickCooldown = false; }, 400);
+
+    // FIX 6: Shorter cooldown (220ms was 400ms)
+    setTimeout(() => { flickCooldown = false; }, 220);
   }
 
   // ── Game simulation ───────────────────────────────────────────────────────
   function updateGame(dt: number) {
-    // Advance blocks toward camera
     for (const b of blocks) {
       b.z -= b.speed * dt;
     }
 
-    // Miss detection
     for (const b of blocks) {
       if (!b.hit && !b.miss && b.z < -0.05) {
         b.miss = true;
@@ -189,12 +193,10 @@
       }
     }
 
-    // Clean up off-screen
     blocks    = blocks.filter(b => b.z > -0.3);
     particles = particles.filter(p => p.life > 0);
     feedbacks = feedbacks.filter(f => f.age < 0.6);
 
-    // Advance particles and feedback
     for (const p of particles) {
       p.x    += p.vx * dt;
       p.y    += p.vy * dt;
@@ -205,7 +207,7 @@
     }
   }
 
-  // ── Canvas rendering — no DOM involved ───────────────────────────────────
+  // ── Canvas rendering ──────────────────────────────────────────────────────
   const ARROW: Record<Dir, string> = { left: '←', right: '→', up: '↑', down: '↓' };
 
   function renderFrame() {
@@ -218,8 +220,8 @@
 
     if (phase !== 'playing') return;
 
-    // Rail lines (perspective converging lines)
-    ctx.lineWidth   = 1;
+    // Rail lines
+    ctx.lineWidth = 1;
     for (const cx of COLS) {
       ctx.strokeStyle = 'rgba(0,245,255,0.06)';
       ctx.beginPath();
@@ -246,20 +248,17 @@
       ctx.save();
       ctx.globalAlpha = alpha;
 
-      // Fill
       ctx.fillStyle = b.color === 'red'
         ? 'rgba(255,59,92,0.15)'
         : 'rgba(0,245,255,0.15)';
       ctx.fillRect(sx - sz / 2, sy - sz / 2, sz, sz);
 
-      // Border + glow
       ctx.strokeStyle = col;
       ctx.lineWidth   = 2;
       ctx.shadowColor = col;
       ctx.shadowBlur  = sz * 0.5;
       ctx.strokeRect(sx - sz / 2, sy - sz / 2, sz, sz);
 
-      // Arrow label
       ctx.shadowBlur     = 0;
       ctx.fillStyle      = col;
       ctx.font           = `bold ${Math.round(sz * 0.45)}px Orbitron, monospace`;
@@ -323,8 +322,9 @@
     const hittable = blocks.filter(b => !b.hit && !b.miss && b.z < HIT_ZONE);
     if (!hittable.length) return;
 
-    // Closest to camera
-    const b = hittable.reduce((a, c) => c.z < a.z ? c : a);
+    // FIX 4: Pick block with highest z (nearest to camera / most in-your-face)
+    // Original used c.z < a.z which picked the FURTHEST block — completely wrong
+    const b = hittable.reduce((a, c) => c.z > a.z ? c : a);
     b.hit = true;
 
     if (b.dir !== dir) {
@@ -369,11 +369,9 @@
 
   // ── Game control ──────────────────────────────────────────────────────────
   function startGame() {
-    // Reset plain state
     blocks = []; particles = []; feedbacks = [];
     _score = 0; _combo = 0; _maxCombo = 0; _health = 100;
     blockId = 0; lastTime = 0;
-    // Reset reactive HUD
     score = 0; combo = 0; maxCombo = 0; health = 100;
     phase = 'playing';
     const cfg = DIFFICULTY[difficulty];
@@ -528,13 +526,11 @@
   {:else if phase === 'playing'}
   <div style="width:100vw;height:100vh;position:relative;overflow:hidden">
 
-    <!-- Single canvas — all game rendering happens here -->
     <canvas
       bind:this={gameCanvas}
       style="position:absolute;inset:0;width:100%;height:100%"
     ></canvas>
 
-    <!-- HUD — reactive Svelte, but only a handful of values, not hundreds of DOM nodes -->
     <div style="
       position:absolute;top:0;left:0;right:0;z-index:20;
       padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:flex-start;
