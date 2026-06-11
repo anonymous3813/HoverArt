@@ -1,4 +1,8 @@
 import { createGameRoom, getGameRoom, deleteGameRoom, updateGameState, addPlayer } from '../services/roomService.js';
+import { createSequenceGame, applyAction, getPublicState } from '../services/sequenceEngine.js';
+
+const MAX_PLAYERS = { flappy: 2, breakout: 2, sequence: 4 };
+
 export function registerGameHandlers(io, socket) {
     let currentRoom = null;
     let playerId = null;
@@ -15,7 +19,7 @@ export function registerGameHandlers(io, socket) {
             name: playerName || 'Player 1',
             score: 0,
             ready: false
-        });
+        }, MAX_PLAYERS[gameType] ?? 2);
         socket.join(code);
         socket.emit('game-room-created', {
             code,
@@ -31,8 +35,8 @@ export function registerGameHandlers(io, socket) {
             socket.emit('game-room-error', { message: 'Room not found. Check the code and try again.' });
             return;
         }
-        if (room.players.length >= 2) {
-            socket.emit('game-room-error', { message: 'Room is full. Maximum 2 players.' });
+        if (room.players.length >= (MAX_PLAYERS[room.gameType] ?? 2)) {
+            socket.emit('game-room-error', { message: 'Room is full.' });
             return;
         }
         currentRoom = normalized;
@@ -42,7 +46,7 @@ export function registerGameHandlers(io, socket) {
             name: playerName || `Player ${room.players.length + 1}`,
             score: 0,
             ready: false
-        });
+        }, MAX_PLAYERS[room.gameType] ?? 2);
         socket.join(currentRoom);
         socket.emit('game-room-joined', {
             code: currentRoom,
@@ -62,10 +66,19 @@ export function registerGameHandlers(io, socket) {
         if (player) {
             player.ready = ready;
             io.to(currentRoom).emit('players-update', { players: room.players });
-            const allReady = room.players.length === 2 && room.players.every(p => p.ready);
+            const minPlayers = room.gameType === 'sequence' ? 2 : 2;
+            const maxPlayers = MAX_PLAYERS[room.gameType] ?? 2;
+            const allReady = room.players.length >= minPlayers &&
+                room.players.length <= maxPlayers &&
+                room.players.every(p => p.ready);
             if (allReady && !room.gameState.started) {
                 room.gameState.started = true;
                 room.gameState.startTime = Date.now();
+                if (room.gameType === 'sequence') {
+                    room.gameState.sequence = createSequenceGame(
+                        room.players.map(p => ({ id: p.id, name: p.name }))
+                    );
+                }
                 io.to(currentRoom).emit('game-start', { gameState: room.gameState });
             }
         }
@@ -167,6 +180,31 @@ export function registerGameHandlers(io, socket) {
             score,
             blocks
         });
+    });
+    socket.on('sequence-action', ({ action }) => {
+        if (!currentRoom) return;
+        const room = getGameRoom(currentRoom);
+        if (!room || room.gameType !== 'sequence' || !room.gameState.sequence) return;
+
+        const result = applyAction(room.gameState.sequence, socket.id, action);
+        if (!result.ok) {
+            socket.emit('sequence-state', { error: result.error });
+            return;
+        }
+
+        for (const p of room.players) {
+            const publicState = getPublicState(room.gameState.sequence, p.id);
+            io.to(p.id).emit('sequence-state', { state: publicState });
+        }
+
+        if (room.gameState.sequence.winner !== null) {
+            room.gameState.gameOver = true;
+            room.gameState.winner = room.gameState.sequence.winner;
+            io.to(currentRoom).emit('game-over', {
+                winner: room.gameState.sequence.winner,
+                players: room.players
+            });
+        }
     });
     socket.on('leave-game-room', () => {
         if (!currentRoom)

@@ -1,4 +1,5 @@
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+/** HoverArt convention: OPENAI_SECRET only (Two Truths, Omni planner, Omni summaries). Not used in the browser extension. */
 export function getOpenAiKey() {
     const raw = process.env.OPENAI_SECRET;
     if (typeof raw !== 'string')

@@ -4,7 +4,7 @@ const dispatch = createEventDispatcher();
 export let roomCode: string;
 export let players: any[] = [];
 export let isHost: boolean = false;
-export let gameType: 'flappy' | 'breakout';
+export let gameType: 'flappy' | 'breakout' | 'sequence';
 let isReady = false;
 let copied = false;
 function toggleReady() {
@@ -38,7 +38,7 @@ function leaveRoom() {
   
   <div class="room-info">
     <p>Share this code with your friend to play together!</p>
-    <p class="player-count">Players: {players.length}/2</p>
+    <p class="player-count">Players: {players.length}/{gameType === 'sequence' ? 4 : 2}</p>
   </div>
   
   <div class="players-list">
@@ -65,7 +65,7 @@ function leaveRoom() {
       </div>
     {/each}
     
-    {#if players.length < 2}
+    {#if players.length < (gameType === 'sequence' ? 2 : 2)}
       <div class="player-card empty">
         <div class="player-icon">⏳</div>
         <div class="player-info">
@@ -86,19 +86,21 @@ function leaveRoom() {
     </button>
     
     {#if players.length < 2}
-      <p class="wait-message">Waiting for another player to join...</p>
+      <p class="wait-message">Need at least 2 players to start...</p>
     {:else if !players.every(p => p.ready)}
       <p class="wait-message">Waiting for all players to be ready...</p>
     {/if}
   </div>
   
   <div class="game-info">
-    <h3>Game: {gameType === 'flappy' ? 'Flappy Mouth' : 'Face Breakout'}</h3>
+    <h3>Game: {gameType === 'flappy' ? 'Flappy Mouth' : gameType === 'breakout' ? 'Face Breakout' : 'Sequence'}</h3>
     <p>
       {#if gameType === 'flappy'}
         Race to see who can get the highest score! Open your mouth to flap.
-      {:else}
+      {:else if gameType === 'breakout'}
         Compete to break all the blocks first! Move your head to control the paddle.
+      {:else}
+        Connect 5 chips in a row! Use your hand to aim and pinch to play cards and place chips.
       {/if}
     </p>
   </div>

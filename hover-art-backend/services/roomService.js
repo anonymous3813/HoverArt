@@ -52,9 +52,9 @@ export function getGameRoom(code) {
 export function deleteGameRoom(code) {
     gameRooms.delete(code);
 }
-export function addPlayer(code, player) {
+export function addPlayer(code, player, maxPlayers = 2) {
     const room = gameRooms.get(code);
-    if (room && room.players.length < 2) {
+    if (room && room.players.length < maxPlayers) {
         room.players.push(player);
     }
 }

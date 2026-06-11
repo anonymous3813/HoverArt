@@ -133,8 +133,8 @@
       <h2>How Omni uses AI</h2>
       <p class="about-text">
         Voice is still handled in the browser (Chrome Web Speech). When the option below is on, your spoken command
-        is sent to the <strong>HoverArt Node backend</strong> you run locally, which calls <strong>OpenAI</strong>
-        (same <code>OPENAI_SECRET</code> as Two Truths) to turn the phrase into a small list of safe browser actions.
+        is sent to the <strong>HoverArt Node backend</strong> (<code>/api/omni/plan</code>), which calls <strong>OpenAI</strong>
+        using server env <code>OPENAI_SECRET</code> only (never inside the extension) to produce a safe list of browser actions.
         The extension then runs those steps; your API key never ships inside the extension package.
       </p>
       <p class="about-text">
@@ -152,7 +152,7 @@
       </div>
       <div class="setting-item">
         <label for="omniBackendUrl">Backend base URL (no trailing slash)</label>
-        <input type="text" class="url-field" id="omniBackendUrl" placeholder="http://127.0.0.1:3001" spellcheck="false" autocomplete="off">
+        <input type="text" class="url-field" id="omniBackendUrl" placeholder="https://hover-art-backend.onrender.com" spellcheck="false" autocomplete="off">
       </div>
       <div class="setting-item">
         <label for="hoverartSiteUrl">HoverArt site URL (PDF defer / summaries link)</label>
@@ -168,7 +168,7 @@
           in), or paste here / use HoverArt Omni → Copy JWT.
         </p>
       </div>
-      <p class="about-text">Start the backend from <code>hover-art-backend</code> with <code>npm start</code>. Test: <code>GET /api/omni/health</code>.</p>
+      <p class="about-text">Deploy/production: Render service with <code>OPENAI_SECRET</code> set. Quick check: <code>GET {backend}/health</code> and <code>GET {backend}/api/omni/health</code>.</p>
     </div>
     <div class="section">
       <h2>Voice Settings</h2>
@@ -261,7 +261,7 @@
       document.getElementById('floatingButton').checked = settings.floatingButton || false;
       document.getElementById('omniUseLlm').checked = settings.omniUseLlm !== false;
       document.getElementById('omniBackendUrl').value =
-        settings.omniBackendUrl || 'http://127.0.0.1:3001';
+        settings.omniBackendUrl || 'https://hover-art-backend.onrender.com';
       document.getElementById('hoverartSiteUrl').value =
         settings.hoverartSiteUrl || 'http://localhost:5173';
       document.getElementById('hoverArtJwt').value = jwt;
@@ -312,7 +312,7 @@
           floatingButton: document.getElementById('floatingButton').checked,
           omniUseLlm: document.getElementById('omniUseLlm').checked,
           omniBackendUrl:
-            document.getElementById('omniBackendUrl').value.trim() || 'http://127.0.0.1:3001',
+            document.getElementById('omniBackendUrl').value.trim() || 'https://hover-art-backend.onrender.com',
           hoverartSiteUrl:
             document.getElementById('hoverartSiteUrl').value.trim() || 'http://localhost:5173',
           hoverArtJwt: jwtFromField

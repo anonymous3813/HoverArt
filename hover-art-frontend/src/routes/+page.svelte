@@ -14,9 +14,7 @@
     <li><a href="#how">How It Works</a></li>
     <li><a href="/tutorial">Tutorial</a></li>
     <li><a href="/omni">Omni</a></li>
-    <li><a href="/games/imposter">Two Truths</a></li>
-    <li><a href="/games/flappy">Flappy Mouth</a></li>
-    <li><a href="/games/breakout">Face Breakout</a></li>
+    <li><a href="/games">Games</a></li>
   </ul>
   <a href="#launch" class="nav-cta">Launch App →</a>
 </nav>
@@ -151,11 +149,9 @@
   <p class="cta-sub">Open your browser. Allow camera access. Draw.</p>
   <div class="cta-actions">
     <a href="/whiteboard" class="btn-primary btn-large">Open the Canvas</a>
+    <a href="/games" class="btn-secondary btn-large">Browse Games →</a>
     <a href="/omni" class="btn-primary btn-large">Omni extension &amp; skill tree →</a>
     <a href="/tutorial" class="btn-secondary btn-large">Take the Tutorial</a>
-    <a href="/games/imposter" class="btn-secondary btn-large">Two Truths</a>
-    <a href="/games/flappy" class="btn-secondary btn-large">Flappy Mouth</a>
-    <a href="/games/breakout" class="btn-secondary btn-large">Face Breakout</a>
   </div>
 </section>
 

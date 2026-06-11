@@ -1,12 +1,13 @@
 <script lang="ts">import { createEventDispatcher } from 'svelte';
 import { gameSocket } from '$lib/services/gameSocket';
 const dispatch = createEventDispatcher();
-export let gameType: 'flappy' | 'breakout';
-let mode: 'menu' | 'create' | 'join' = 'menu';
+export let gameType: 'flappy' | 'breakout' | 'sequence';
+let mode: 'menu' | 'create' | 'join' | 'solo-setup' = 'menu';
 let playerName = '';
 let roomCode = '';
 let loading = false;
 let error = '';
+let aiDifficulty: 'easy' | 'medium' | 'hard' = 'medium';
 async function handleCreateRoom() {
     if (!playerName.trim()) {
         error = 'Please enter your name';
@@ -48,7 +49,16 @@ async function handleJoinRoom() {
     }
 }
 function handlePlaySolo() {
-    dispatch('playSolo');
+    if (gameType === 'sequence') {
+        dispatch('playSolo', { playerName: playerName.trim() || 'You', difficulty: aiDifficulty });
+    }
+    else {
+        dispatch('playSolo');
+    }
+}
+function openSoloSetup() {
+    if (gameType === 'sequence') mode = 'solo-setup';
+    else dispatch('playSolo');
 }
 </script>
 
@@ -56,15 +66,15 @@ function handlePlaySolo() {
   <div class="lobby-card">
     {#if mode === 'menu'}
       <div class="lobby-header">
-        <h2>{gameType === 'flappy' ? 'Flappy Mouth' : 'Face Breakout'}</h2>
+        <h2>{gameType === 'flappy' ? 'Flappy Mouth' : gameType === 'breakout' ? 'Face Breakout' : 'Sequence'}</h2>
         <p>Choose your game mode</p>
       </div>
       
       <div class="mode-buttons">
-        <button class="mode-btn solo" on:click={handlePlaySolo}>
+        <button class="mode-btn solo" on:click={openSoloSetup}>
           <span class="mode-icon">👤</span>
-          <span class="mode-title">Play Solo</span>
-          <span class="mode-desc">Practice alone</span>
+          <span class="mode-title">{gameType === 'sequence' ? 'Play vs AI' : 'Play Solo'}</span>
+          <span class="mode-desc">{gameType === 'sequence' ? 'Face the computer opponent' : 'Practice alone'}</span>
         </button>
         
         <button class="mode-btn create" on:click={() => mode = 'create'}>
@@ -77,6 +87,45 @@ function handlePlaySolo() {
           <span class="mode-icon">🔗</span>
           <span class="mode-title">Join Room</span>
           <span class="mode-desc">Join a friend's game</span>
+        </button>
+      </div>
+    {:else if mode === 'solo-setup'}
+      <div class="lobby-header">
+        <button class="back-btn" on:click={() => mode = 'menu'}>← Back</button>
+        <h2>Play vs AI</h2>
+        <p>Probability-based opponent — no LLMs</p>
+      </div>
+
+      <div class="form-container">
+        <div class="input-group">
+          <label for="soloName">Your Name</label>
+          <input
+            id="soloName"
+            type="text"
+            bind:value={playerName}
+            placeholder="Enter your name"
+            maxlength="20"
+          />
+        </div>
+
+        <div class="input-group">
+          <label>AI Difficulty</label>
+          <div class="difficulty-row">
+            {#each ['easy', 'medium', 'hard'] as d}
+              <button
+                type="button"
+                class="diff-btn"
+                class:active={aiDifficulty === d}
+                on:click={() => aiDifficulty = d as typeof aiDifficulty}
+              >
+                {d}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <button class="action-btn primary" on:click={handlePlaySolo}>
+          Start Game
         </button>
       </div>
     {:else if mode === 'create'}
@@ -339,6 +388,31 @@ function handlePlaySolo() {
   .action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .difficulty-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .diff-btn {
+    flex: 1;
+    padding: 0.6rem;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.6);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .diff-btn.active {
+    border-color: #00f5ff;
+    color: #00f5ff;
+    background: rgba(0,245,255,0.1);
   }
 
   @media (max-width: 640px) {

@@ -5,9 +5,21 @@
 <script lang="ts">import { onMount } from 'svelte';
 import SkillTree from '$lib/components/SkillTree.svelte';
 import type { Skill } from '$lib/types/skill';
-import { auth } from '$lib/auth.svelte.ts';
+import { auth, clearAuth } from '$lib/auth.svelte.ts';
 import { getBackendUrl } from '$lib/backendUrl';
 const BACKEND_URL = getBackendUrl();
+
+const SESSION_HINT =
+	'This usually means the token was issued by a different backend (e.g. local vs Render) or JWT_SECRET changed on the server. Sign in again.';
+
+function authFailedOnServer(res: Response, data: { error?: string }): boolean {
+	const err = String(data?.error ?? '');
+	if (res.status === 401 || /invalid or expired token|unauthorized/i.test(err)) {
+		clearAuth();
+		return true;
+	}
+	return false;
+}
 let omniPane: 'home' | 'summaries' | 'projects' = $state('home');
 type SummaryRow = {
     id: number;
@@ -65,7 +77,10 @@ async function refreshSummaries() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            sumError = data.error || 'Could not load summaries.';
+            if (authFailedOnServer(res, data))
+                sumError = `${data.error ?? 'Unauthorized.'} ${SESSION_HINT}`;
+            else
+                sumError = data.error || 'Could not load summaries.';
             sumList = [];
             return;
         }
@@ -91,7 +106,10 @@ async function refreshProjects() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            projErr = data.error || 'Could not load projects.';
+            if (authFailedOnServer(res, data))
+                projErr = `${data.error ?? 'Unauthorized.'} ${SESSION_HINT}`;
+            else
+                projErr = data.error || 'Could not load projects.';
             projList = [];
             return;
         }
@@ -119,7 +137,10 @@ async function loadProjectDetail(id: number) {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            projErr = data.error || 'Failed to load project.';
+            if (authFailedOnServer(res, data))
+                projErr = `${data.error ?? 'Unauthorized.'} ${SESSION_HINT}`;
+            else
+                projErr = data.error || 'Failed to load project.';
             return;
         }
         projDetailMeta = data.project ? { title: data.project.title } : null;

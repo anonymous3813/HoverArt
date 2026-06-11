@@ -1,3 +1,6 @@
+/** Default HoverArt API (matches typical Render deploy). Override in Omni extension options → Backend base URL. */
+const DEFAULT_OMNI_BACKEND_URL = 'https://hover-art-backend.onrender.com';
+
 console.log('Omni Enhanced background service worker loaded');
 let skillTree = [];
 let settings = {};
@@ -662,14 +665,14 @@ const OMNI_PLANNER_TOOLS = new Set([
 function sanitizeOmniBackendBase(raw) {
     let base = typeof raw === 'string' ? raw.trim() : '';
     if (!base)
-        base = 'http://127.0.0.1:3001';
+        base = DEFAULT_OMNI_BACKEND_URL;
     try {
         const u = new URL(base.replace(/\/+$/, '') || base);
         const path = (u.pathname || '/').replace(/\/$/, '');
         return path === '' || path === '/' ? u.origin : `${u.origin}${path}`;
     }
     catch {
-        return 'http://127.0.0.1:3001';
+        return DEFAULT_OMNI_BACKEND_URL;
     }
 }
 function isOpenAiChatHost(rawUrl) {
@@ -1868,7 +1871,7 @@ function getDefaultSettings() {
         voicePitch: 1.0,
         autoSpeak: true,
         showNotifications: true,
-        omniBackendUrl: 'http://127.0.0.1:3001',
+        omniBackendUrl: DEFAULT_OMNI_BACKEND_URL,
         hoverartSiteUrl: 'http://localhost:5173',
         omniUseLlm: true,
         hoverArtJwt: ''

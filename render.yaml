@@ -3,6 +3,8 @@
 #
 # After deploy, set in the Render service:
 #   DATABASE_URL — Render PostgreSQL "Internal" or "External" URL, or Neon / Supabase, etc.
+#   JWT_SECRET — set a stable random string in the dashboard; do NOT rotate casually or every login token breaks
+#               (Omni Projects / summaries return "Invalid or expired token" until users sign in again).
 #   OPENAI_SECRET — optional; Two Truths + Omni use this one variable
 #   SMTP_* — optional; email share from canvas
 #

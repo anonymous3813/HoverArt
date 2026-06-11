@@ -94,6 +94,11 @@ class GameSocketService {
             this.socket.emit('flappy-jump-sync', {});
         }
     }
+    sendSequenceAction(action) {
+        if (this.socket && this.roomCode) {
+            this.socket.emit('sequence-action', { action });
+        }
+    }
     leaveRoom() {
         if (this.socket && this.roomCode) {
             this.socket.emit('leave-game-room');
@@ -132,6 +137,11 @@ class GameSocketService {
             this.socket.on('flappy-jump-sync', callback);
         }
     }
+    onSequenceState(callback: (payload: { state?: unknown; error?: string }) => void) {
+        if (this.socket) {
+            this.socket.on('sequence-state', callback);
+        }
+    }
     onBreakoutPongPeerPaddle(callback: (data: {
         idx: number;
         nx: number;
@@ -155,6 +165,11 @@ class GameSocketService {
             this.socket.off('breakout-pong-peer-paddle', onPeer);
         if (onSync)
             this.socket.off('breakout-pong-state-sync', onSync);
+    }
+    offSequenceHandlers(onState?: (payload: { state?: unknown; error?: string }) => void) {
+        if (this.socket && onState) {
+            this.socket.off('sequence-state', onState);
+        }
     }
     offFlappyMpHandlers(onJump?: () => void, onBird?: (data: unknown) => void) {
         if (!this.socket)
@@ -190,6 +205,7 @@ class GameSocketService {
             this.socket.off('breakout-pong-peer-paddle');
             this.socket.off('breakout-pong-state-sync');
             this.socket.off('flappy-jump-sync');
+            this.socket.off('sequence-state');
             this.socket.off('player-left');
             this.socket.off('game-over');
         }
